@@ -1,14 +1,7 @@
-import matplotlib.pyplot as plt
 import numpy as np
-import scipy.ndimage as ndi
-import scipy.ndimage.filters
-import skimage as ski
-import skimage.io
-import skimage.morphology
 from skimage.color import rgb2gray
-from skimage.feature import (match_descriptors, corner_harris, corner_peaks,
-                             ORB, plot_matches)
-from skimage.io import imread
+from skimage.feature import match_descriptors, ORB
+from skimage.io import imread, imsave
 from skimage.measure import ransac
 from skimage.transform import warp, ProjectiveTransform
 
@@ -28,7 +21,7 @@ def match(img1, img2, debug=False):
     (keypoints1, keypoints2) : (K1, 2), (K2, 2)
         Matched keypoints from the two images.
     """
-    descriptor_extractor = ORB(n_keypoints=500, harris_k=0.15)
+    descriptor_extractor = ORB(n_keypoints=500, harris_k=0.05)
 
     descriptor_extractor.detect_and_extract(img1)
     keypoints1 = descriptor_extractor.keypoints
@@ -63,7 +56,7 @@ def fit_transform(keypoints1, keypoints2, transform):
         A boolean array indicating inlier keypoints. 
     """
     model, inliers = ransac((keypoints1, keypoints2), transform, 7, 1,
-            max_trials=10000)
+            max_trials=5000)
     return model, inliers
 
 
@@ -88,11 +81,12 @@ def rectify(image, reference, transform=ProjectiveTransform, debug=False):
     model : transform type 
         Instance of the geometric transformation used.
     """
-    keypoints = match(reference, image)
+    keypoints = match(reference, image, debug)
     model, inliers = fit_transform(*keypoints, transform)
     rectified = warp(image.T, model).T
 
     if debug:
+        import matplotlib.pyplot as plt
         from skimage.feature import plot_matches
         fig, ax = plt.subplots()
         seq = np.arange(len(keypoints[0]))[:, np.newaxis]
@@ -101,8 +95,6 @@ def rectify(image, reference, transform=ProjectiveTransform, debug=False):
         ax.axis('off')
         plt.savefig('debug/matched.png')
 
-    if debug:
-        from skimage.feature import plot_matches
         fig, ax = plt.subplots()
         kp1 = keypoints[0][inliers, :]
         kp2 = keypoints[1][inliers, :]
@@ -151,7 +143,7 @@ def find_occupation(image, debug=False):
     def roughness(patch):
         grad = np.gradient(patch)
         return np.mean(np.sqrt(grad[0]**2 + grad[1]**2))
-    threshold = 0.015
+    threshold = 0.0075
     radius = 15
     for m in range(n_machines):
         for s in range(n_slots):
@@ -163,7 +155,7 @@ def find_occupation(image, debug=False):
                 occupation[m, s] = True
 
     if debug:
-        slot_mask = np.zeros_like(image)
+        slot_mask = np.ones_like(image, dtype=bool)
         roughness_values = []
         for m in range(n_machines):
             for s in range(n_slots):
@@ -171,13 +163,13 @@ def find_occupation(image, debug=False):
                 # save roughness value
                 patch = image[r-radius:r+radius, c-radius:c+radius]
                 roughness_values.append(roughness(patch))
-                # set the mas
-                slot_mask[r-radius:r+radius, c-radius:c+radius] *= 2
+                # mask slots out
+                slot_mask[r-radius:r+radius, c-radius:c+radius] = False
         image_slots = image.copy()
-        image_slots = slot_mask * image_slots
+        image_slots[slot_mask] = 0.5 * image_slots[slot_mask]
         np.set_printoptions(precision=3)
         print(np.reshape(np.array(roughness_values), (n_machines, n_slots)))
-        ski.io.imsave('debug/slots.png', image_slots)
+        imsave('debug/slots.png', image_slots)
 
     return occupation
 
@@ -206,9 +198,9 @@ def scan_table(image, banner, debug=False):
     rectified, model = rectify(image_gray, banner_gray, transform, debug)
 
     if debug:
-        ski.io.imsave('debug/banner-gray.jpg', banner_gray)
-        ski.io.imsave('debug/image-gray.jpg', image_gray)
-        ski.io.imsave('debug/rectified.jpg', rectified)
+        imsave('debug/banner-gray.jpg', banner_gray)
+        imsave('debug/image-gray.jpg', image_gray)
+        imsave('debug/rectified.jpg', rectified)
         print('transformation matrix:', model.params)
 
     occupation = find_occupation(rectified, debug)
@@ -238,6 +230,7 @@ def find_slots_limits(image, compute_std=True, debug=False):
     row_transitions = np.nonzero(row_transitions)[0]
     n_transitions = len(row_transitions)
     if debug:
+        import matplotlib.pyplot as plt
         fig = plt.figure()
         plt.plot(image)
         fig.savefig('debug/slots_row.png')
@@ -245,59 +238,6 @@ def find_slots_limits(image, compute_std=True, debug=False):
     row_transitions = row_transitions[:n_transitions - n_transitions % 2]
     return list(pairwise(row_transitions))
 
-
-def find_banner_limits(image, debug=False):
-    """Find the limits of the banner.
-
-    Parameters
-    ----------
-    image : (M, N)
-    debug : bool, optional
-        Displays some debug infos and saves intermediate results as images.
-        
-    Returns
-    -------
-    (top, bottom, left, right) : int
-        Limits of the banner.
-    """
-    #row_mean = image.mean(axis=2).mean(axis=1)
-    row_mean = image.mean(axis=1)
-    #thresh = 75
-    thresh = 100
-    transitions = np.nonzero(np.diff(row_mean < thresh))[0]
-    if debug:
-        print("row_mean transitions", transitions)
-        print("row_mean transitions[:10]", transitions[:10])
-    header_r0 = transitions[0]
-    i = 1
-    while transitions[i] - transitions[i-1] < 500 / 4:
-        i += 1
-    header_r1 = transitions[i-1]
-
-    if debug:
-        print('header rows:', (header_r0, header_r1))
-        ski.io.imsave('debug/header_rows.jpg', image[header_r0:header_r1, :])
-
-    # find horizontal limits
-    col_mean = image[header_r0:header_r1, :].mean(axis=0)
-    #thresh = 75
-    thresh = 100
-    if debug:
-        print("header col_mean", col_mean)
-    dark_cols = np.nonzero(col_mean < thresh)[0]
-
-    if debug:
-        print("header dark cols", dark_cols)
-
-    header_c0 = dark_cols[0]
-    header_c1 = dark_cols[-1]
-
-    if debug:
-        print('header cols:', (header_c0, header_c1))
-        ski.io.imsave('debug/header.jpg', image[header_r0:header_r1,
-            header_c0:header_c1])
-
-    return header_r0, header_r1, header_c0, header_c1
 
 
 if __name__ == "__main__":
@@ -309,8 +249,8 @@ if __name__ == "__main__":
         del args[args.index('-d')]
     else:
         debug = False
-    image = ski.io.imread(args[0])
-    banner = ski.io.imread(args[1])
+    image = imread(args[0])
+    banner = imread(args[1])
 
     import os.path
     if debug and not os.path.exists('debug'):
