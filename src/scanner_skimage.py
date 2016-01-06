@@ -1,12 +1,66 @@
-from __future__ import print_function
-
-import cv2
 import numpy as np
 from skimage.color import rgb2gray
+from skimage.feature import match_descriptors, ORB
 from skimage.io import imread, imsave
+from skimage.measure import ransac
+from skimage.transform import warp, ProjectiveTransform
 
 
-def rectify(image, reference, debug=False):
+def match(img1, img2, debug=False):
+    """Match keypoints in two images.
+
+    Parameters
+    ----------
+    img1 : (M, N)
+        The first grayscale image.
+    img2 : (P, Q)
+        The second grayscale image.
+
+    Returns
+    -------
+    (keypoints1, keypoints2) : (K1, 2), (K2, 2)
+        Matched keypoints from the two images.
+    """
+    descriptor_extractor = ORB(n_keypoints=500, harris_k=0.05)
+
+    descriptor_extractor.detect_and_extract(img1)
+    keypoints1 = descriptor_extractor.keypoints
+    descriptors1 = descriptor_extractor.descriptors
+
+    descriptor_extractor.detect_and_extract(img2)
+    keypoints2 = descriptor_extractor.keypoints
+    descriptors2 = descriptor_extractor.descriptors
+
+    matches = match_descriptors(descriptors1, descriptors2, cross_check=True)
+
+    return keypoints1[matches[:, 0]], keypoints2[matches[:, 1]]
+
+
+def fit_transform(keypoints1, keypoints2, transform):
+    """Determine the transform that maps two sets of matched keypoints.
+
+    Parameters
+    ----------
+    keypoints1 : (N, 2)
+        First set of keypoints.
+    keypoints2 : (N, 2)
+        Second set of keypoints.
+    transform:
+        The transform type to be used.
+
+    Returns
+    -------
+    object
+        An instance of the transform type.
+    inliers: (N,)
+        A boolean array indicating inlier keypoints. 
+    """
+    model, inliers = ransac((keypoints1, keypoints2), transform, 7, 1,
+            max_trials=5000)
+    return model, inliers
+
+
+def rectify(image, reference, transform=ProjectiveTransform, debug=False):
     """Transform an image to fit the reference image.
 
     Parameters
@@ -27,37 +81,30 @@ def rectify(image, reference, debug=False):
     model : transform type 
         Instance of the geometric transformation used.
     """
-    detector = cv2.ORB(nfeatures=2000)
-    keypoints1, descriptors1 = detector.detectAndCompute(reference, None)
-    keypoints2, descriptors2 = detector.detectAndCompute(image, None)
-
-    matcher = cv2.BFMatcher(normType=cv2.NORM_HAMMING, crossCheck=True)
-    matches = matcher.match(descriptors1, descriptors2)
-    keypoints1 = np.array([keypoints1[int(m.queryIdx)].pt for m in matches],
-            dtype=np.float32)
-    keypoints2 = np.array([keypoints2[int(m.trainIdx)].pt for m in matches],
-            dtype=np.float32)
-
-    transform_matrix, mask = cv2.findHomography(keypoints1, keypoints2,
-            cv2.RANSAC, 0.1)
-    inliers = mask.ravel().tolist()
-
-    rectified = cv2.warpPerspective(image, transform_matrix, image.T.shape,
-            None, cv2.WARP_INVERSE_MAP)
+    keypoints = match(reference, image, debug)
+    model, inliers = fit_transform(*keypoints, transform)
+    rectified = warp(image.T, model).T
 
     if debug:
         import matplotlib.pyplot as plt
         from skimage.feature import plot_matches
         fig, ax = plt.subplots()
-        seq = np.arange(len(keypoints1))[:, np.newaxis]
+        seq = np.arange(len(keypoints[0]))[:, np.newaxis]
         matches = np.tile(seq, (1, 2))
-        kp1 = np.roll(keypoints1, 1, axis=1)
-        kp2 = np.roll(keypoints2, 1, axis=1)
-        plot_matches(ax, reference, image, kp1, kp2, matches)
+        plot_matches(ax, reference, image, keypoints[0], keypoints[1], matches)
         ax.axis('off')
         plt.savefig('debug/matched.png')
 
-    return rectified
+        fig, ax = plt.subplots()
+        kp1 = keypoints[0][inliers, :]
+        kp2 = keypoints[1][inliers, :]
+        seq = np.arange(len(kp1))[:, np.newaxis]
+        matches = np.tile(seq, (1, 2))
+        plot_matches(ax, reference, image, kp1, kp2, matches)
+        ax.axis('off')
+        plt.savefig('debug/matched-inliers.png')
+
+    return rectified, model
 
 
 def find_occupation(image, debug=False):
@@ -92,26 +139,16 @@ def find_occupation(image, debug=False):
     col_tile = np.tile(d_cols, (n_machines, 1))
     pos = np.dstack((r0 + row_tile, c0 + col_tile))
 
-
-    threshold = 2.5   # threshold at mean intensity level == 150
-    radius = 15     # radius of a square patch encompassing a slot
-    image_float = image.astype(float)
-    # Adapt the threshold to the image mean intensity level.
-    mean_intensity = image_float.mean()
-    threshold = threshold * (mean_intensity / 150)
-    print(threshold)
-    # Measure of the slot roughness. Much roghness means the card is present,
-    # few roughness the card is not there.
+    # Check slot status.
     def roughness(patch):
         grad = np.gradient(patch)
         return np.mean(np.sqrt(grad[0]**2 + grad[1]**2))
-    # Helper function to check slot status.
-    def is_booked(patch):
-        return roughness(patch) < threshold
+    threshold = 0.006
+    radius = 15
     for m in range(n_machines):
         for s in range(n_slots):
             r, c = pos[m, s]
-            patch = image_float[r-radius:r+radius, c-radius:c+radius]
+            patch = image[r-radius:r+radius, c-radius:c+radius]
             # If the patch is smooth enough, it means there is no card, i.e.
             # it is booked.
             if roughness(patch) < threshold:
@@ -124,7 +161,7 @@ def find_occupation(image, debug=False):
             for s in range(n_slots):
                 r, c = pos[m, s]
                 # save roughness value
-                patch = image_float[r-radius:r+radius, c-radius:c+radius]
+                patch = image[r-radius:r+radius, c-radius:c+radius]
                 roughness_values.append(roughness(patch))
                 # mask slots out
                 slot_mask[r-radius:r+radius, c-radius:c+radius] = False
@@ -154,14 +191,24 @@ def scan_table(image, banner, debug=False):
     table : (N_MACHINES, N_SLOTS), bool
         Boolean matrix indicating the booking status of the machines.
     """
-    rectified = rectify(image, banner, debug)
+    image_gray = rgb2gray(image)
+    banner_gray = rgb2gray(banner)
+
+    transform = ProjectiveTransform
+    rectified, model = rectify(image_gray, banner_gray, transform, debug)
 
     if debug:
-        imsave('debug/banner.jpg', banner)
-        imsave('debug/image.jpg', image)
+        imsave('debug/banner-gray.jpg', banner_gray)
+        imsave('debug/image-gray.jpg', image_gray)
         imsave('debug/rectified.jpg', rectified)
+        print('transformation matrix:', model.params)
 
     occupation = find_occupation(rectified, debug)
+    if debug:
+        for r in range(occupation.shape[0]):
+            for c in range(occupation.shape[1]):
+                print(occupation[r, c] and 'X' or '-', end=' ')
+            print()
 
     return occupation
 
@@ -192,12 +239,6 @@ def find_slots_limits(image, compute_std=True, debug=False):
     return list(pairwise(row_transitions))
 
 
-def print_occupation(occupation):
-    for r in range(occupation.shape[0]):
-        for c in range(occupation.shape[1]):
-            print(occupation[r, c] and 'X' or '-', end=' ')
-        print()
-
 
 if __name__ == "__main__":
     # usage example: python scanner.py [-d] image banner
@@ -208,13 +249,12 @@ if __name__ == "__main__":
         del args[args.index('-d')]
     else:
         debug = False
-    image = cv2.imread(args[0], cv2.CV_LOAD_IMAGE_GRAYSCALE)
-    banner = cv2.imread(args[1], cv2.CV_LOAD_IMAGE_GRAYSCALE)
+    image = imread(args[0])
+    banner = imread(args[1])
 
     import os.path
     if debug and not os.path.exists('debug'):
         import os
         os.mkdir('debug')
 
-    occupation = scan_table(image, banner, debug=debug)
-    print_occupation(occupation)
+    scan_table(image, banner, debug=debug)
