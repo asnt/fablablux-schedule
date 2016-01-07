@@ -1,0 +1,74 @@
+{# This simple template derives from ``base.html``. See ``base.html`` for
+   more information about template inheritance. #}
+{%- extends "base.html" %}
+
+{# Loads some of the macros included with Flask-Bootstrap. We are using the
+   utils module here to automatically render Flask's flashed messages in a
+   bootstrap friendly manner #}
+{% import "bootstrap/utils.html" as utils %}
+
+
+{# Inside the ``content`` is where you should place most of your own stuff.
+   This will keep scripts at the page end and a navbar you add on later
+   intact. #}
+{% block content %}
+  <div class="container">
+
+  {%- with messages = get_flashed_messages(with_categories=True) %}
+  {%- if messages %}
+    <div class="row">
+      <div class="col-md-12">
+        {{utils.flashed_messages(messages, dismissible=True)}}
+      </div>
+    </div>
+  {%- endif %}
+  {%- endwith %}
+
+  <div><!-- class="jumbotron"> -->
+      <h1>Open Access
+        {% if status %}
+        <span class="label label-success">Open</span>
+        {% else %}
+        <span class="label label-danger">Closed</span>
+        {% endif %}
+      </h1>
+
+      {% if status %}
+      <h2>Machine Occupation Table</h2>
+      {% endif %}
+
+      {% if occupation and status %}
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>machine</th>
+            {% for slot in occupation['slots'] %}
+            <th>{{ slot }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for machine, status in occupation['machines'] %}
+          <tr>
+            <td>{{ machine }}</td>
+            {% for s in status %}
+              {% if s %}
+              <td class="label-danger"></td>
+              {% else %}
+              <td class="label-success"></td>
+              {% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% elif status %}
+      <div class="alert alert-warning fade in">
+        The occupation is currently not available. Please retry later.
+      </div>
+      {% endif %}
+
+      <h2>Opening Hours</h2>
+      Thursdays from 14:00 to 21:00.
+    </div>
+{%- endblock %}
