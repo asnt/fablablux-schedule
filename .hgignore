@@ -1,3 +1,5 @@
+src/instance/
+
 .pyc
 __pycache__/
 
