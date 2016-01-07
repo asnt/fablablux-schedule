@@ -166,32 +166,6 @@ def scan_table(image, banner, debug=False):
     return occupation
 
 
-def pairwise(iterable):
-    """s0, s1, s2, s3,... -> (s0, s1), (s2, s3), ..."""
-    a = iter(iterable)
-    return zip(a, a)
-
-
-def find_slots_limits(image, compute_std=True, debug=False):
-    if compute_std:
-        row_std = image.std(axis=0).mean(axis=1)
-        #row_std = image.std(axis=0)
-    else:
-        row_std = image
-    row_plateau = row_std > 10
-    row_transitions = abs(row_plateau[1:] - row_plateau[:-1])
-    row_transitions = np.nonzero(row_transitions)[0]
-    n_transitions = len(row_transitions)
-    if debug:
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        plt.plot(image)
-        fig.savefig('debug/slots_row.png')
-    # ensure an even count of entries
-    row_transitions = row_transitions[:n_transitions - n_transitions % 2]
-    return list(pairwise(row_transitions))
-
-
 def print_occupation(occupation):
     for r in range(occupation.shape[0]):
         for c in range(occupation.shape[1]):
