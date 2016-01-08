@@ -2,8 +2,6 @@ from __future__ import print_function
 
 import cv2
 import numpy as np
-from skimage.color import rgb2gray
-from skimage.io import imread, imsave
 
 
 def rectify(image, reference, debug=False):
@@ -46,16 +44,19 @@ def rectify(image, reference, debug=False):
             None, cv2.WARP_INVERSE_MAP)
 
     if debug:
-        import matplotlib.pyplot as plt
-        from skimage.feature import plot_matches
-        fig, ax = plt.subplots()
-        seq = np.arange(len(keypoints1))[:, np.newaxis]
-        matches = np.tile(seq, (1, 2))
-        kp1 = np.roll(keypoints1, 1, axis=1)
-        kp2 = np.roll(keypoints2, 1, axis=1)
-        plot_matches(ax, reference, image, kp1, kp2, matches)
-        ax.axis('off')
-        plt.savefig('debug/matched.png')
+        try:
+            import matplotlib.pyplot as plt
+            from skimage.feature import plot_matches
+            fig, ax = plt.subplots()
+            seq = np.arange(len(keypoints1))[:, np.newaxis]
+            matches = np.tile(seq, (1, 2))
+            kp1 = np.roll(keypoints1, 1, axis=1)
+            kp2 = np.roll(keypoints2, 1, axis=1)
+            plot_matches(ax, reference, image, kp1, kp2, matches)
+            ax.axis('off')
+            plt.savefig('debug/matched.png')
+        except:
+            pass
 
     return rectified
 
@@ -132,7 +133,7 @@ def find_occupation(image, debug=False):
         image_slots[slot_mask] = 0.5 * image_slots[slot_mask]
         np.set_printoptions(precision=3)
         print(np.reshape(np.array(roughness_values), (n_machines, n_slots)))
-        imsave('debug/slots.png', image_slots)
+        cv2.imwrite('debug/slots.png', image_slots)
 
     return occupation
 
@@ -157,9 +158,9 @@ def scan_table(image, banner, debug=False):
     rectified = rectify(image, banner, debug)
 
     if debug:
-        imsave('debug/banner.jpg', banner)
-        imsave('debug/image.jpg', image)
-        imsave('debug/rectified.jpg', rectified)
+        cv2.imwrite('debug/banner.jpg', banner)
+        cv2.imwrite('debug/image.jpg', image)
+        cv2.imwrite('debug/rectified.jpg', rectified)
 
     occupation = find_occupation(rectified, debug)
 
