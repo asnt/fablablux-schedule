@@ -5,7 +5,7 @@ import ui
 
 def run():
     app = ui.create_app()
-    app.run(host='192.168.123.100', port=5000)
+    app.run(host='192.168.8.1', port=5000)
     #app.run(host='192.168.178.33', port=5000)
 
 
