@@ -538,7 +538,7 @@ class Fablab_MachineSchedule {
     }
 
     /**
-     * Update the occupation table.
+     * Update the schedule table.
      *
      * @param array $table Array of bool.
      */
@@ -548,7 +548,7 @@ class Fablab_MachineSchedule {
     }
 
     /**
-     * Display the machine occupation table at the end of the content.
+     * Display the machine schedule table at the end of the content.
      *
      * @param string $content The original content.
      * @return string The modified content.
@@ -564,7 +564,7 @@ class Fablab_MachineSchedule {
             return $content;
         }
 
-        // Get the occupation table data.
+        // Get the schedule table data.
         $table = $this->get_table();
         $machine_names = $this->options['machine_names'];
         $slot_names = $this->options['slot_names'];
@@ -575,8 +575,8 @@ class Fablab_MachineSchedule {
         }
 
         // Display the table.
-        $table_html = '<h2>Machine Occupation</h2>';
-        $table_html .= '<table class="occupation-table"' .
+        $table_html = '<h2>Live Machine Use Schedule</h2>';
+        $table_html .= '<table class="machine-schedule-table"' .
             ' style="border: none; border-spacing: 0.5em;">';
         $table_html .= '<tr style="border: none;">';
         $table_html .= '<td style="border: none; width: 20%"></td>';
@@ -588,8 +588,8 @@ class Fablab_MachineSchedule {
             $table_html .= '<tr style="padding: 1em;">';
             $machine_name = $machine_names[$machine_index];
             $table_html .= "<th style='border: none;'>$machine_name</th>";
-            foreach($slots as $occupied) {
-                if ($occupied) {
+            foreach($slots as $in_use) {
+                if ($in_use) {
                     $class = '';
                     $style = 'background-color: #f78181;';   // red
                 } else {
@@ -622,14 +622,14 @@ class Fablab_MachineSchedule {
                 'methods' => 'GET',
                 'callback' => array($this, 'api_get_status'),
             ));
-            register_rest_route('open-access/v1', '/occupation', array(
+            register_rest_route('open-access/v1', '/machine-schedule', array(
                 'methods' => 'GET',
-                'callback' => array($this, 'api_get_occupation'),
+                'callback' => array($this, 'api_get_schedule'),
                 'permission_callback' => array($this, 'api_authenticate'),
             ));
-            register_rest_route('open-access/v1', '/occupation', array(
+            register_rest_route('open-access/v1', '/machine-schedule', array(
                 'methods' => 'POST',
-                'callback' => array($this, 'api_update_occupation'),
+                'callback' => array($this, 'api_update_schedule'),
                 'args' => array(
                     'table' => array(
                         'required' => true,
@@ -681,7 +681,7 @@ class Fablab_MachineSchedule {
     }
 
     /**
-     * Get the occupation table as a JSON string.
+     * Get the schedule table as a JSON string.
      *
      * The JSON is has the following structure:
      *
@@ -696,7 +696,7 @@ class Fablab_MachineSchedule {
      *
      * @return string
      */
-    public function api_get_occupation() {
+    public function api_get_schedule() {
         $table = $this->get_table();
         $data = array(
             'table' => $table,
@@ -705,17 +705,17 @@ class Fablab_MachineSchedule {
     }
 
     /**
-     * Update the occupation table.
+     * Update the schedule table.
      *
      * @param WP_REST_Request $request The REST API request.
      * @return 
      */
-    public function api_update_occupation(WP_REST_Request $request) {
+    public function api_update_schedule(WP_REST_Request $request) {
         $table = $request['table'];
         $this->update_table($table);
         $data = array(
             'code' => 'updated',
-            'message' => 'Occupation table successfully updated.',
+            'message' => 'Machine schedule table successfully updated.',
             'data' => array(
                 'table' => $table,
             ),
