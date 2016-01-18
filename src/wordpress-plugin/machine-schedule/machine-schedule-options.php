@@ -330,11 +330,14 @@ The days are: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
 </tr>
 
 <tr>
-<th scope="row"><label for="$field_timezone">Timezone:</label></th>
+<th scope="row"><label for="$field_timezone">Time zone:</label></th>
 <td>
 <select name="$field_timezone">
     $timezone_html_options
 </select>
+<p class="description">
+Time zone of the opening hours.
+</p>
 </td>
 </tr>
 
