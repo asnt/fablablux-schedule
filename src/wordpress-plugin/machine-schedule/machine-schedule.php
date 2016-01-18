@@ -34,12 +34,12 @@ include(plugin_dir_path(__FILE__) . 'machine-schedule-options.php');
  * - Change const arrays inside the class to private static prorperties for
  *   earlier PHP version support.
  */
-class Fablab_MachineSchedule {
+class MachineSchedule {
 
     /**
      * The singleton instance of this class.
      *
-     * $var Fablab_MachineSchedule $instance
+     * $var MachineSchedule $instance
      */
     static $instance = false;
 
@@ -63,11 +63,11 @@ class Fablab_MachineSchedule {
     private function __construct() {
         register_activation_hook(
             __FILE__,
-            array('Fablab_MachineSchedule', 'activate')
+            array('MachineSchedule', 'activate')
         );
         register_uninstall_hook(
             __FILE__,
-            array('Fablab_MachineSchedule', 'uninstall')
+            array('MachineSchedule', 'uninstall')
         );
         add_action('admin_menu', array($this, 'admin_menu'));
         add_filter('the_content', array($this, 'the_content'), 20, 1);
@@ -81,7 +81,7 @@ class Fablab_MachineSchedule {
      *
      * The instance is created if it does not exist yet.
      *
-     * @return Fablab_MachineSchedule
+     * @return MachineSchedule
      */
     public static function instance() {
         if (!self::$instance) {
@@ -371,5 +371,5 @@ class Fablab_MachineSchedule {
     }
 }
 
-$open_access = Fablab_MachineSchedule::instance();
+$open_access = MachineSchedule::instance();
 ?>
