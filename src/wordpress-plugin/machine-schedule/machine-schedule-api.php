@@ -81,14 +81,14 @@ class MachineScheduleApi {
      * The JSON message has the following structure:
      *
      *    {
-     *      "open": true|false
+     *      "open_access": true|false
      *    }
      *
      * @return string
      */
     public function get_status() {
         $data = array(
-            'open' => $this->schedule->is_open_access(),
+            'open_access' => $this->schedule->is_open_access(),
         );
         return json_encode($data);
     }
