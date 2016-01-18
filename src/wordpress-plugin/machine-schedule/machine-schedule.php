@@ -371,5 +371,5 @@ class MachineSchedule {
     }
 }
 
-$open_access = MachineSchedule::instance();
+$machine_schedule = MachineSchedule::instance();
 ?>
