@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+import sys
+
 import cv2
 import numpy as np
 
@@ -216,7 +218,6 @@ def parse_arguments():
 
     Raise ValueError if the arguments are invalid or missing.
     """
-    import sys
     args = sys.argv[1:]
 
     params = dict(debug=False,
@@ -272,11 +273,17 @@ def main():
         print(e)
         print()
         usage()
-        import sys
         sys.exit(1)
 
     image = cv2.imread(params['input_file'], cv2.CV_LOAD_IMAGE_GRAYSCALE)
     banner = cv2.imread(params['banner_file'], cv2.CV_LOAD_IMAGE_GRAYSCALE)
+
+    if image is None:
+        print("could no read image '" + params['input_file'] + "'")
+        sys.exit(1)
+    if banner is None:
+        print("could no read image '" + params['banner_file'] + "'")
+        sys.exit(1)
 
     import os.path
     if params['debug'] and not os.path.exists('debug'):
