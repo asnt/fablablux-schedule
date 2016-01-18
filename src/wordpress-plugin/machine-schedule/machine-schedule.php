@@ -61,6 +61,8 @@ class MachineSchedule {
      * Register hooks.
      */
     private function __construct() {
+        $this->api = new MachineScheduleApi($this);
+        $this->api->activate();
         register_activation_hook(
             __FILE__,
             array('MachineSchedule', 'activate')
@@ -71,7 +73,6 @@ class MachineSchedule {
         );
         add_action('admin_menu', array($this, 'admin_menu'));
         add_filter('the_content', array($this, 'the_content'), 20, 1);
-        $this->api_register_routes();
 
         $this->options = new MachineScheduleOptions();
     } 
@@ -128,7 +129,7 @@ class MachineSchedule {
      *
      * @return bool True if open, false otherwise.
      */
-    private function is_open() {
+    public function is_open_access() {
         $timezone = new DateTimeZone($this->options['timezone']);
         $local_date = new DateTime("now", $timezone);
         $timestamp = $local_date->getTimestamp() + $local_date->getOffset();
@@ -176,7 +177,7 @@ class MachineSchedule {
      * @see json_decode
      * @return mixed Array or null if the array cannot be decoded from JSON.
      */
-    private function get_table() {
+    public function get_table() {
         $page_id = $this->get_page_id();
         $single = true;
         $table_json = get_post_meta($page_id, $this->meta_table, $single);
@@ -189,7 +190,7 @@ class MachineSchedule {
      *
      * @param array $table Array of bool.
      */
-    private function update_table($table) {
+    public function update_table($table) {
         $page_id = $this->get_page_id();
         update_post_meta($page_id, $this->meta_table, json_encode($table));
     }
@@ -207,7 +208,7 @@ class MachineSchedule {
 
         // TODO: Should we display something when the open access is off,
         //       like a "Closed" message?
-        if (!$this->is_open()) {
+        if (!$this->is_open_access()) {
             return $content;
         }
 
@@ -315,14 +316,14 @@ class MachineSchedule {
      * The JSON message has the following structure:
      *
      *    {
-     *      "open": true|false
+     *      "open_access": true|false
      *    }
      *
      * @return string
      */
     public function api_get_status() {
         $data = array(
-            'open' => $this->is_open(),
+            'open_access' => $this->is_open_access(),
         );
         return json_encode($data);
     }
