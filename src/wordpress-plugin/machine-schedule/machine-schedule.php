@@ -23,16 +23,6 @@ include(plugin_dir_path(__FILE__) . 'machine-schedule-options.php');
  *   nonce on the server with wp_create_nonce('wp_json'). Pass it along to
  *   the client somehow. The client includes the header 'X-WP-Nonce' with the
  *   value of the nonce in every header.
- *
- * History:
- * - Add the timezone of the opening hours as an option.
- * - Display the table only during opening hours.
- * - Add the opening hours as an option.
- * - Add the table header labels as options.
- * - Expose the options in the administration panel.
- * - Prefix the custom metadata keys.
- * - Change const arrays inside the class to private static prorperties for
- *   earlier PHP version support.
  */
 class MachineSchedule {
 
