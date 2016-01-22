@@ -38,7 +38,6 @@ class MachineScheduleApi {
             register_rest_route('open-access/v1', '/machine-schedule', array(
                 'methods' => 'GET',
                 'callback' => array($this, 'get_schedule'),
-                'permission_callback' => array($this, 'authenticate'),
             ));
             register_rest_route('open-access/v1', '/machine-schedule', array(
                 'methods' => 'POST',
