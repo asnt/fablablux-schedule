@@ -8,13 +8,13 @@ class MachineScheduleOptions implements ArrayAccess {
     /**
      * Name of the option key.
      */
-    const storage_name = "machine_use";
+    const storage_name = "machine_schedule";
 
     /**
      * The default options array.
      */
     private static $default_options = array(
-        "page_title" => "",
+        "page_id" => -1,
         "machine_names" => array("MakerBot 1", "MakerBot 2", "RepRap",
                                  "Small CNC", "Big CNC", "Laser Cutter",
                                  "Vinyl Cutter"),
@@ -85,6 +85,17 @@ class MachineScheduleOptions implements ArrayAccess {
      */
     public function reset() {
         $this->options = self::$default_options;
+    }
+
+    /**
+     * Get the title of the currently defined page ID.
+     */
+    public function get_page_title() {
+        $page_id = $this['page_id'];
+        if (!is_page($page_id)) {
+            return "";
+        }
+        return get_the_title($page_id);
     }
 
     //----------------------
@@ -178,7 +189,7 @@ class MachineScheduleOptions implements ArrayAccess {
 
         // Define unique field names for the form inputs.
         $field_action = 'machine_action';
-        $field_page_title = 'machine_page_title';
+        $field_page_id = 'machine_page_id';
         $field_machine_names = 'machine_machine_names';
         $field_slot_names = 'machine_slot_names';
         $field_opening_hours = 'machine_opening_hours';
@@ -191,13 +202,13 @@ class MachineScheduleOptions implements ArrayAccess {
             $action = "";
         }
         if ($action == "update") {
-            $page_title = $_POST[$field_page_title];
+            $page_id = intval($_POST[$field_page_id]);
             $machine_names = $_POST[$field_machine_names];
             $slot_names = $_POST[$field_slot_names];
             $opening_hours = $_POST[$field_opening_hours];
             $timezone = $_POST[$field_timezone];
 
-            $this['page_title'] = $page_title;
+            $this['page_id'] = $page_id;
             $this['machine_names'] = explode("\n", $machine_names);
             $this['slot_names'] = explode("\n", $slot_names);
             $hours_array = $this->parse_opening_hours($opening_hours);
@@ -238,15 +249,16 @@ END;
         }
 
         // Retrieve option values.
-        $page_title = $this['page_title'];
+        $page_id = $this['page_id'];
         $page_titles_html = "";
         foreach(get_pages() as $page) {
             $title = $page->post_title;
-            if ($title == $page_title) {
-                $page_titles_html .= "<option value='$title'" .
+            $id = $page->ID;
+            if ($id == $page_id) {
+                $page_titles_html .= "<option value='$id'" .
                                      " selected='selected'>$title</option>";
             } else {
-                $page_titles_html .= "<option value='$title'>$title</option>";
+                $page_titles_html .= "<option value='$id'>$title</option>";
             }
         }
         $machine_names = $this['machine_names'];
@@ -278,10 +290,10 @@ END;
 <table class="form-table">
 
 <tr>
-<th scope="row"><label for="$field_page_title">Target page:</label></th>
+<th scope="row"><label for="$field_page_id">Target page:</label></th>
 <td>
-<select name="$field_page_title">
-    <option value='' default></option>
+<select name="$field_page_id">
+    <option value='-1' default></option>
     $page_titles_html
 </select>
 <p class="description">The page where to display the machine use schedule.</p>

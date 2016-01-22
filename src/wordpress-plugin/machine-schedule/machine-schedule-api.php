@@ -124,14 +124,24 @@ class MachineScheduleApi {
      */
     public function update_schedule(WP_REST_Request $request) {
         $table = $request['table'];
-        $this->schedule->update_table($table);
-        $data = array(
-            'code' => 'updated',
-            'message' => 'Machine schedule table successfully updated.',
-            'data' => array(
-                'table' => $table,
-            ),
-        );
+        $success = $this->schedule->update_table($table);
+        if ($success) {
+            $data = array(
+                'code' => 'updated',
+                'message' => 'Updated machine schedule.',
+                'data' => array(
+                    'table' => $table,
+                ),
+            );
+        } else  {
+            $data = array(
+                'code' => 'update_error',
+                'message' => 'Could not update machine schedule.',
+                'data' => array(
+                    'table' => $table,
+                ),
+            );
+        }
         return json_encode($data);
     }
 }

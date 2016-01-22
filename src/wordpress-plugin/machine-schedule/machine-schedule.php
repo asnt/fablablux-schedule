@@ -88,7 +88,7 @@ class MachineSchedule {
         if (!current_user_can('activate_plugins')) {
             return;
         }
-        // This calls initialises the options in the database.
+        // The instanciation initialises the options in the database.
         $options = new MachineScheduleOptions();
     }
 
@@ -112,6 +112,23 @@ class MachineSchedule {
                          'manage_options',
                          'machine-schedule-admin-menu',
                          array($this->options, 'render_admin_menu'));
+    }
+
+    /**
+     * Check if a post is of 'page' type.
+     *
+     * @param int $page_id
+     * @return True if a page, false if not.
+     */
+    private function is_page($page_id) {
+        $post = get_post($page_id);
+        if (is_null($post)) {
+            return false;
+        }
+        if ($post->post_type == "page") {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -147,19 +164,6 @@ class MachineSchedule {
     }
 
     /**
-     * Get the ID of the open access page.
-     *
-     * @return int
-     */
-    private function get_page_id() {
-        $page = get_page_by_title($this->options['page_title']);
-        if (!is_null($page)) {
-            return $page->ID;
-        }
-        return null;
-    }
-
-    /**
      * Get the machine schedule as an array of bool.
      *
      * Return the value of json_decode.
@@ -168,7 +172,10 @@ class MachineSchedule {
      * @return mixed Array or null if the array cannot be decoded from JSON.
      */
     public function get_table() {
-        $page_id = $this->get_page_id();
+        $page_id = $this->options['page_id'];
+        if (!$this->is_page($page_id)) {
+            return "";
+        }
         $single = true;
         $table_json = get_post_meta($page_id, $this->meta_table, $single);
         $table = json_decode($table_json);
@@ -179,10 +186,17 @@ class MachineSchedule {
      * Update the schedule table.
      *
      * @param array $table Array of bool.
+     * @return bool True on success, false on failure.
      */
     public function update_table($table) {
-        $page_id = $this->get_page_id();
-        update_post_meta($page_id, $this->meta_table, json_encode($table));
+        $page_id = $this->options['page_id'];
+        if (!$this->is_page($page_id)) {
+            return "";
+        }
+        $result = update_post_meta($page_id, $this->meta_table,
+                                             json_encode($table));
+        $success = $result != false;
+        return $success;
     }
 
     /**
@@ -192,13 +206,12 @@ class MachineSchedule {
      * @return string The modified content.
      */
     public function the_content($content) {
-        if (!is_page($this->options['page_title'])) {
+        if (!$this->is_open_access()) {
             return $content;
         }
 
-        // TODO: Should we display something when the open access is off,
-        //       like a "Closed" message?
-        if (!$this->is_open_access()) {
+        $page_id = $this->options['page_id'];
+        if (!$this->is_page($page_id)) {
             return $content;
         }
 
