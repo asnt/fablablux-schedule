@@ -115,17 +115,19 @@ class MachineSchedule {
     }
 
     /**
-     * Check if a post is of 'page' type.
+     * Check if a post is of of a given type.
      *
-     * @param int $page_id
-     * @return True if a page, false if not.
+     * @param string $type The post type.
+     * @param int $post_id
+     *
+     * @return bool True if the requested type matched the post.
      */
-    private function is_page($page_id) {
-        $post = get_post($page_id);
+    private function is_post_type($type, $post_id) {
+        $post = get_post($post_id);
         if (is_null($post)) {
             return false;
         }
-        if ($post->post_type == "page") {
+        if ($post->post_type == $type) {
             return true;
         }
         return false;
@@ -173,7 +175,7 @@ class MachineSchedule {
      */
     public function get_table() {
         $page_id = $this->options['page_id'];
-        if (!$this->is_page($page_id)) {
+        if (!$this->is_post_type("page", $page_id)) {
             return "";
         }
         $single = true;
@@ -190,13 +192,102 @@ class MachineSchedule {
      */
     public function update_table($table) {
         $page_id = $this->options['page_id'];
-        if (!$this->is_page($page_id)) {
+        if (!$this->is_post_type("page", $page_id)) {
             return "";
         }
         $result = update_post_meta($page_id, $this->meta_table,
                                              json_encode($table));
         $success = $result != false;
         return $success;
+    }
+
+    /**
+     * Get the last schedule with visible machines and slots only.
+     *
+     * @return array array("table" => array(),         // M x N
+     *                     "machine_names" => array(), // M
+     *                     "slot_names" => array(),    // N
+     *                     )
+     */
+    private function get_visible_schedule() {
+        $table = $this->get_table();
+        $machine_names = $this->options['machine_names'];
+        $slot_names = $this->options['slot_names'];
+        $machine_mask = $this->options['visible_machines'];
+        $slot_mask = $this->options['visible_slots'];
+
+        $masked_rows = $this->filter_rows($table, $machine_mask);
+        $masked_table = $this->filter_columns($masked_rows, $slot_mask);
+        $masked_machine_names = $this->filter_rows($machine_names,
+                                                   $machine_mask);
+        $masked_slot_names = $this->filter_rows($slot_names, $slot_mask);
+
+        $schedule = array(
+            "table" => $masked_table,
+            "machine_names" => $masked_machine_names,
+            "slot_names" => $masked_slot_names,
+        );
+
+        return $schedule;
+    }
+
+    /**
+     * Filter the rows of an array using the given mask.
+     *
+     * The mask must be the same length as the number of rows in the array. If
+     * not, the $array is returned as is.
+     *
+     * @return array
+     */
+    private function filter_rows($array, $row_mask) {
+        $n_rows = count($array);
+        if ($n_rows != count($row_mask)) {
+            return $array;
+        }
+
+        $filtered_array = array();
+
+        for($index = 0; $index < $n_rows; $index++) {
+            if($row_mask[$index]) {
+                array_push($filtered_array, $array[$index]);
+            }
+        }
+
+        return $filtered_array;
+    }
+
+    /**
+     * Filter the columns of an array using the given mask.
+     *
+     * The mask must be the same length as the number of columns in the array.
+     * If not, the $array is returned as is.
+     *
+     * @return array
+     */
+    private function filter_columns($array, $col_mask) {
+        $n_rows = count($array);
+        if($n_rows == 0) {
+            return $array;
+        }
+
+        $n_cols = count($array[0]);
+        if ($n_cols != count($col_mask)) {
+            return $array;
+        }
+
+        $filtered_array = array();
+
+        for($row = 0; $row < $n_rows; $row++) {
+            $row_array = array();
+            for($col = 0; $col < $n_cols; $col++) {
+                if($col_mask[$col]) {
+                    array_push($row_array, $array[$row][$col]);
+                }
+            }
+            array_push($filtered_array, $row_array);
+        }
+
+        return $filtered_array;
     }
 
     /**
@@ -211,14 +302,15 @@ class MachineSchedule {
         }
 
         $page_id = $this->options['page_id'];
-        if (!$this->is_page($page_id)) {
+        if (!is_page($page_id)) {
             return $content;
         }
 
-        // Get the schedule table data.
-        $table = $this->get_table();
-        $machine_names = $this->options['machine_names'];
-        $slot_names = $this->options['slot_names'];
+        // Get the schedule data.
+        $schedule = $this->get_visible_schedule();
+        $table = $schedule['table'];
+        $machine_names = $schedule['machine_names'];
+        $slot_names = $schedule['slot_names'];
 
         // Exit early if no data to display.
         if (is_null($table)) {

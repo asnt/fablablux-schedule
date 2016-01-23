@@ -15,11 +15,20 @@ class MachineScheduleOptions implements ArrayAccess {
      */
     private static $default_options = array(
         "page_id" => -1,
-        "machine_names" => array("MakerBot 1", "MakerBot 2", "RepRap",
-                                 "Small CNC", "Big CNC", "Laser Cutter",
-                                 "Vinyl Cutter"),
-        "slot_names" => array("14:00", "15:00", "16:00", "17:00", "18:00",
-                              "19:00", "20:00", "21:00", "22:00"),
+        "machine_names" => array(
+            "MakerBot 1", "MakerBot 2", "RepRap", "Small CNC", "Big CNC",
+            "Laser Cutter", "Vinyl Cutter"
+        ),
+        "slot_names" => array(
+            "13 - 14", "14 - 15", "15 - 16", "16 - 17", "17 - 18", "18 - 19",
+            "19 - 20", "20 - 21", "21 - 22"
+        ),
+        "visible_machines" => array(
+            true, true, true, true, true, true, true
+        ),
+        "visible_slots" => array(
+            true, true, true, true, true, true, true, true, true
+        ),
         "opening_hours" => array(
             // (day, start_hour, start_minutes, end_hour, end_minutes)
             array("Thursday", 14, 0, 21, 0),
@@ -190,27 +199,70 @@ class MachineScheduleOptions implements ArrayAccess {
         // Define unique field names for the form inputs.
         $field_action = 'machine_action';
         $field_page_id = 'machine_page_id';
-        $field_machine_names = 'machine_machine_names';
-        $field_slot_names = 'machine_slot_names';
+        $field_machine_name = 'machine_machine_name';
+        $field_slot_name = 'machine_slot_name';
+        $field_machine_visible = 'machine_machine_visible';
+        $field_slot_visible = 'machine_slot_visible';
         $field_opening_hours = 'machine_opening_hours';
         $field_timezone = 'machine_timezone';
 
-        // Save changes if this is a POST request.
         if (isset($_POST[$field_action])) {
             $action = $_POST[$field_action];
         } else {
             $action = "";
         }
+
+        // Save changes if this is a POST request.
         if ($action == "update") {
             $page_id = intval($_POST[$field_page_id]);
-            $machine_names = $_POST[$field_machine_names];
-            $slot_names = $_POST[$field_slot_names];
             $opening_hours = $_POST[$field_opening_hours];
             $timezone = $_POST[$field_timezone];
 
+            $n_machines = count($this['machine_names']);
+
+            $machine_names = array();
+            for($index = 0; $index < $n_machines; $index++) {
+                $field_name = "${field_machine_name}_${index}";
+                $name = $_POST[$field_name];
+                array_push($machine_names, $name); 
+            }
+
+            $visible_machines = array();
+            for($index = 0; $index < $n_machines; $index++) {
+                $field_name = "${field_machine_visible}_${index}";
+                if (isset($_POST[$field_name])) {
+                    $visible = true;
+                } else {
+                    $visible = false;
+                }
+                array_push($visible_machines, $visible); 
+            }
+
+            $n_slots = count($this['slot_names']);
+
+            $slot_names = array();
+            for($index = 0; $index < $n_slots; $index++) {
+                $field_name = "${field_slot_name}_${index}";
+                $name = $_POST[$field_name];
+                array_push($slot_names, $name); 
+            }
+
+            $visible_slots = array();
+            for($index = 0; $index < $n_slots; $index++) {
+                $field_name = "${field_slot_visible}_${index}";
+                if (isset($_POST[$field_name])) {
+                    $visible = true;
+                } else {
+                    $visible = false;
+                }
+                array_push($visible_slots, $visible); 
+            }
+
             $this['page_id'] = $page_id;
-            $this['machine_names'] = explode("\n", $machine_names);
-            $this['slot_names'] = explode("\n", $slot_names);
+            $this ['machine_names'] = $machine_names;
+            $this ['slot_names'] = $slot_names;
+            $this ['visible_machines'] = $visible_machines;
+            $this ['visible_slots'] = $visible_slots;
             $hours_array = $this->parse_opening_hours($opening_hours);
             $this['opening_hours'] = $hours_array;
             $this['timezone'] = $timezone;
@@ -249,6 +301,7 @@ END;
         }
 
         // Retrieve option values.
+
         $page_id = $this['page_id'];
         $page_titles_html = "";
         foreach(get_pages() as $page) {
@@ -262,9 +315,40 @@ END;
             }
         }
         $machine_names = $this['machine_names'];
-        $machine_names_string = join("\n", $machine_names);
+        $visible_machines = $this['visible_machines'];
+
+        $machine_html = "";
+        for($index = 0; $index < count($machine_names); $index++) {
+            $name = $machine_names[$index];
+            $visible = $visible_machines[$index] ? "checked='checked'" : "";
+
+            $machine_html .= "<div>";
+            $machine_html .= "<input type='text'" .
+                                   " name='${field_machine_name}_${index}'" .
+                                   " value='$name'>";
+            $machine_html .= "<input type='checkbox'" .
+                                   " name='${field_machine_visible}_${index}'" .
+                                   " $visible>";
+            $machine_html .= "</div>";
+        }
+        
         $slot_names = $this['slot_names'];
-        $slot_names_string = join("\n", $slot_names);
+        $visible_slots = $this['visible_slots'];
+
+        $slot_html = "";
+        for($index = 0; $index < count($slot_names); $index++) {
+            $name = $slot_names[$index];
+            $visible = $visible_slots[$index] ? "checked='checked'" : "";
+            $slot_html .= "<div>";
+            $slot_html .= "<input type='text'" .
+                                 " name='${field_slot_name}_${index}'" .
+                                 " value='$name'>";
+            $slot_html .= "<input type='checkbox'" .
+                                 " name='${field_slot_visible}_${index}'" .
+                                 " $visible>";
+            $slot_html .= "</div>";
+        }
+
         $hours = $this['opening_hours'];
         $opening_hours_string = $this->format_opening_hours($hours);
         $current_timezone = $this['timezone'];
@@ -296,28 +380,24 @@ END;
     <option value='-1' default></option>
     $page_titles_html
 </select>
-<p class="description">The page where to display the machine use schedule.</p>
-<p class="description">If blank, the schedule will not be displayed.</p>
+<p class="description">The page where to display the schedule.</p>
+<p class="description">If blank, the schedule is not displayed.</p>
 </td>
 </tr>
 
 <tr>
-<th scope="row"><label for="$field_machine_names">Machines names:</label></th>
+<th scope="row"><label>Machines:</label></th>
 <td>
-<textarea name="$field_machine_names"
-          rows="7" cols="15">$machine_names_string</textarea>
-<p class="description">The header column of the table.</p>
-<p class="description">Put one machine per line.</p>
+$machine_html
+<p class="description">Unchecked machines are not displayed.</p>
 </td>
 </tr>
 
 <tr>
-<th scope="row"><label for="$field_slot_names">Time slots names:</label></th>
+<th scope="row"><label>Time slots:</label></th>
 <td>
-<textarea name="$field_slot_names"
-          rows="9" cols="15">$slot_names_string</textarea>
-<p class="description">The header row of the table.</p>
-<p class="description">Put one slot per line.</p>
+$slot_html
+<p class="description">If unchecked, the slot is not displayed.</p>
 </td>
 </tr>
 
