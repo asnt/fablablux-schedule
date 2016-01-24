@@ -1,34 +1,24 @@
 <?php
 
+include_once(plugin_dir_path(__FILE__) . 'open-access.php');
+include_once(plugin_dir_path(__FILE__) . 'options.php');
+include_once(plugin_dir_path(__FILE__) . 'table.php');
+
 /**
- * Expose a REST API to view and update the machine schedule.
+ * Expose the machine schedule through a REST API.
  */
 class MachineScheduleApi {
 
-    /**
-     * Instance of the master MachineSchedule class.
-     *
-     * var $schedule
-     */
-    private $schedule = null;
+    private $options = null;
 
-    /**
-     * Constructor.
-     */
-    public function __construct(MachineSchedule $schedule) {
-        $this->schedule = $schedule;
+    public function __construct() {
+        $this->options = MachineScheduleOptions::instance();
     }
 
-    /**
-     * Activate the API.
-     */
     public function activate() {
         $this->register_routes();
     }
 
-    /**
-     * Register the API endpoints.
-     */
     private function register_routes() {
         add_action('rest_api_init', function() {
             register_rest_route('open-access/v1', '/', array(
@@ -87,7 +77,7 @@ class MachineScheduleApi {
      */
     public function get_status() {
         $data = array(
-            'open_access' => $this->schedule->is_open_access(),
+            'open_access' => OpenAccess::status()
         );
         return json_encode($data);
     }
@@ -109,7 +99,7 @@ class MachineScheduleApi {
      * @return string
      */
     public function get_schedule() {
-        $table = $this->schedule->get_table();
+        $table = Table::get($this->options["page_id"]);
         $data = array(
             'table' => $table,
         );
@@ -124,7 +114,8 @@ class MachineScheduleApi {
      */
     public function update_schedule(WP_REST_Request $request) {
         $table = $request['table'];
-        $success = $this->schedule->update_table($table);
+        $page_id = $this->options['page_id'];
+        $success = Table::update($page_id, $table);
         if ($success) {
             $data = array(
                 'code' => 'updated',

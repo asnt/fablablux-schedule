@@ -5,8 +5,10 @@
  */
 class MachineScheduleOptions implements ArrayAccess {
 
+    private static $instance = null;
+
     /**
-     * Name of the option key.
+     * Name of the key in the options table of the database.
      */
     const storage_name = "machine_schedule";
 
@@ -37,7 +39,7 @@ class MachineScheduleOptions implements ArrayAccess {
     );
 
     /**
-     * The options array.
+     * The most recent options array.
      */
     private $options = null;
 
@@ -46,7 +48,14 @@ class MachineScheduleOptions implements ArrayAccess {
      */
     private $loaded = false;
 
-    public function __construct() {
+    public static function instance() {
+        if (is_null(self::$instance)) {
+            self::$instance = new self;
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
         $this->init();
     }
 
