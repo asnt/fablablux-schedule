@@ -29,21 +29,14 @@ class MachineSchedule {
 
     static $instance = null;
 
-    /**
-     * The key of the metadata used to store the table.
-     *
-     * $var string $meta_table
-     */
-    private $meta_table = 'machine_schedule_table';
-
-    /**
-     * The options array.
-     */
     private $options = null;
 
     private function __construct() {
         $this->api = new MachineScheduleApi();
         $this->api->activate();
+
+        $this->options = MachineScheduleOptions::instance();
+
         register_activation_hook(
             __FILE__,
             array('MachineSchedule', 'activate')
@@ -54,17 +47,8 @@ class MachineSchedule {
         );
         add_action('admin_menu', array($this, 'admin_menu'));
         add_filter('the_content', array($this, 'the_content'), 20, 1);
-
-        $this->options = MachineScheduleOptions::instance();
     } 
 
-    /**
-     * Get the singleton instance of this class.
-     *
-     * The instance is created if it does not exist yet.
-     *
-     * @return MachineSchedule
-     */
     public static function instance() {
         if (is_null(self::$instance)) {
             self::$instance = new self;
@@ -79,8 +63,9 @@ class MachineSchedule {
         if (!current_user_can('activate_plugins')) {
             return;
         }
-        // The instanciation initialises the options in the database.
-        $options = new MachineScheduleOptions();
+        // By getting the instance, the options are initialized in the
+        // database.
+        $options = MachineScheduleOptions::instance();
     }
 
     /**
@@ -90,7 +75,7 @@ class MachineSchedule {
         if (!current_user_can('activate_plugins')) {
             return;
         }
-        $options = new MachineScheduleOptions();
+        $options = MachineScheduleOptions::intance();
         $options->delete();
     }
 
@@ -103,95 +88,6 @@ class MachineSchedule {
                          'manage_options',
                          'machine-schedule-admin-menu',
                          array($this->options, 'render_admin_menu'));
-    }
-
-    /**
-     * Get the latest schedule with visible machines and slots only.
-     *
-     * @return array array("table" => array(),         // M x N
-     *                     "machine_names" => array(), // M
-     *                     "slot_names" => array(),    // N
-     *                     )
-     */
-    private function get_visible_schedule() {
-        $table = Table::get($this->options['page_id']);
-        $machine_names = $this->options['machine_names'];
-        $slot_names = $this->options['slot_names'];
-        $machine_mask = $this->options['visible_machines'];
-        $slot_mask = $this->options['visible_slots'];
-
-        $masked_rows = $this->filter_rows($table, $machine_mask);
-        $masked_table = $this->filter_columns($masked_rows, $slot_mask);
-        $masked_machine_names = $this->filter_rows($machine_names,
-                                                   $machine_mask);
-        $masked_slot_names = $this->filter_rows($slot_names, $slot_mask);
-
-        $schedule = array(
-            "table" => $masked_table,
-            "machine_names" => $masked_machine_names,
-            "slot_names" => $masked_slot_names,
-        );
-
-        return $schedule;
-    }
-
-    /**
-     * Filter the rows of an array using the given mask.
-     *
-     * The mask must be the same length as the number of rows in the array. If
-     * not, the $array is returned as is.
-     *
-     * @return array
-     */
-    private function filter_rows($array, $row_mask) {
-        $n_rows = count($array);
-        if ($n_rows != count($row_mask)) {
-            return $array;
-        }
-
-        $filtered_array = array();
-
-        for($index = 0; $index < $n_rows; $index++) {
-            if($row_mask[$index]) {
-                array_push($filtered_array, $array[$index]);
-            }
-        }
-
-        return $filtered_array;
-    }
-
-    /**
-     * Filter the columns of an array using the given mask.
-     *
-     * The mask must be the same length as the number of columns in the array.
-     * If not, the $array is returned as is.
-     *
-     * @return array
-     */
-    private function filter_columns($array, $col_mask) {
-        $n_rows = count($array);
-        if($n_rows == 0) {
-            return $array;
-        }
-
-        $n_cols = count($array[0]);
-        if ($n_cols != count($col_mask)) {
-            return $array;
-        }
-
-        $filtered_array = array();
-
-        for($row = 0; $row < $n_rows; $row++) {
-            $row_array = array();
-            for($col = 0; $col < $n_cols; $col++) {
-                if($col_mask[$col]) {
-                    array_push($row_array, $array[$row][$col]);
-                }
-            }
-            array_push($filtered_array, $row_array);
-        }
-
-        return $filtered_array;
     }
 
     /**
@@ -211,10 +107,9 @@ class MachineSchedule {
         }
 
         // Get the schedule data.
-        $schedule = $this->get_visible_schedule();
-        $table = $schedule['table'];
-        $machine_names = $schedule['machine_names'];
-        $slot_names = $schedule['slot_names'];
+        $table = Table::get_visible($page_id);
+        $machine_names = Table::get_visible_machines();
+        $slot_names = Table::get_visible_slots();
 
         // Exit early if no data to display.
         if (is_null($table)) {
