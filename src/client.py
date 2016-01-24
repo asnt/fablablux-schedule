@@ -57,7 +57,7 @@ def get_table(config):
     print(r.text)
 
 
-def post_table(table, confifg):
+def post_table(table, config):
     service = ScheduleService(config["base_url"])
     url = service.url_for("schedule")
     json_data = dict(table=table)
