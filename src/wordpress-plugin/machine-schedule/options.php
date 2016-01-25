@@ -59,6 +59,14 @@ class MachineScheduleOptions implements ArrayAccess {
         $this->init();
     }
 
+    public function register_menu() {
+        add_options_page('Machine Schedule Options',
+                         'Machine Schedule',
+                         'manage_options',
+                         'machine-schedule-admin-menu',
+                         array($this, 'render_admin_menu'));
+    }
+
     /**
      * Load the options or create default ones if they do not yet exist.
      */

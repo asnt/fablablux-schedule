@@ -45,7 +45,7 @@ class MachineSchedule {
             __FILE__,
             array('MachineSchedule', 'uninstall')
         );
-        add_action('admin_menu', array($this, 'admin_menu'));
+        add_action('admin_menu', array($this, 'action_admin_menu'));
         add_filter('the_content', array($this, 'the_content'), 20, 1);
     } 
 
@@ -82,12 +82,8 @@ class MachineSchedule {
     /**
      * Add an options page in the admin menu.
      */
-    public function admin_menu() {
-        add_options_page('Machine Schedule Options',
-                         'Machine Schedule',
-                         'manage_options',
-                         'machine-schedule-admin-menu',
-                         array($this->options, 'render_admin_menu'));
+    public function action_admin_menu() {
+        $this->options->register_menu();
     }
 
     /**
