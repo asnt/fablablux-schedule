@@ -21,6 +21,11 @@ class MachineSchedule {
 
     static $instance = null;
 
+    /**
+     * Name of the shortcode tag to display the schedule.
+     */
+    private $shortcode = "schedule";
+
     private $options = null;
 
     private function __construct() {
@@ -39,6 +44,7 @@ class MachineSchedule {
         );
         add_action('admin_menu', array($this, 'action_admin_menu'));
         add_filter('the_content', array($this, 'the_content'), 20, 1);
+        add_shortcode($this->shortcode, array($this, 'shortcode_handler'));
     } 
 
     public static function instance() {
@@ -94,10 +100,34 @@ class MachineSchedule {
             return $content;
         }
 
-        $table_html = ScheduleView::render($page_id);
+        $page_id = $this->options['page_id'];
+        $table = Table::get_visible($page_id);
+        $machines = Table::get_visible_machines();
+        $slots = Table::get_visible_slots();
+        $table_html = ScheduleView::render($table, $machines, $slots);
         $content = $table_html . $content;
 
         return $content;
+    }
+
+    /**
+     * Render the machine schedule.
+     *
+     * @param string $content The original content.
+     * @return string The modified content.
+     */
+    public function shortcode_handler($attributes, $content=null) {
+        if (!OpenAccess::status()) {
+            return "";
+        }
+
+        $page_id = $this->options['page_id'];
+        $table = Table::get_visible($page_id);
+        $machines = Table::get_visible_machines();
+        $slots = Table::get_visible_slots();
+        $table_html = ScheduleView::render($table, $machines, $slots);
+
+        return $table_html;
     }
 }
 

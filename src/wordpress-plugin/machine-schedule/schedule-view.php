@@ -5,15 +5,12 @@ include_once(plugin_dir_path(__FILE__) . 'table.php');
 
 class ScheduleView {
 
-    public static function render($page_id) {
-        $table = Table::get_visible($page_id);
+    public static function render($table, $machine_names, $slot_names) {
         if (is_null($table)) {
             return "";
         }
-        $machine_names = Table::get_visible_machines();
-        $slot_names = Table::get_visible_slots();
 
-        $table_html = '<h2>Live Machine Use Schedule</h2>';
+        $table_html = '';
         $table_html .= '<table class="machine-schedule-table"' .
             ' style="border: none; border-spacing: 0.5em;">';
         $table_html .= '<tr style="border: none;">';
