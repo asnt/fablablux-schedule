@@ -72,14 +72,14 @@ class MachineSchedule {
     }
 
     /**
-     * Add an options page in the admin menu.
+     * Register our options view in the admin menu.
      */
     public function action_admin_menu() {
         $this->options->register_menu();
     }
 
     /**
-     * Display the machine schedule table at the end of the content.
+     * Display the machine schedule on the main content area.
      *
      * @param string $content The original content.
      * @return string The modified content.
