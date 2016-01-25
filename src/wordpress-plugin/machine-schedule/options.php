@@ -12,7 +12,7 @@ class MachineScheduleOptions implements ArrayAccess {
     /**
      * Name of the key in the options table of the database.
      */
-    const storage_name = "machine_schedule";
+    const key = "machine_schedule";
 
     /**
      * The default options array.
@@ -38,6 +38,22 @@ class MachineScheduleOptions implements ArrayAccess {
             array("Thursday", 14, 0, 21, 0),
         ),
         "timezone" => "Europe/Luxembourg",
+        "_table" => array(
+            array(false, false, false, false, false, false, false, false,
+                  false),
+            array(false, false, false, false, false, false, false, false,
+                  false),
+            array(false, false, false, false, false, false, false, false,
+                  false),
+            array(false, false, false, false, false, false, false, false,
+                  false),
+            array(false, false, false, false, false, false, false, false,
+                  false),
+            array(false, false, false, false, false, false, false, false,
+                  false),
+            array(false, false, false, false, false, false, false, false,
+                  false),
+        ),
     );
 
     /**
@@ -95,7 +111,7 @@ class MachineScheduleOptions implements ArrayAccess {
      * @return bool True on success, false if the option does not exist.
      */
     private function load() {
-        $options = get_option(self::storage_name);
+        $options = get_option(self::key);
         if ($options == false) {
             return false;
         } else {
@@ -108,14 +124,14 @@ class MachineScheduleOptions implements ArrayAccess {
      * Save the options in the database.
      */
     public function save() {
-        update_option(self::storage_name, $this->options);
+        update_option(self::key, $this->options);
     }
 
     /**
      * Delete the options from the database.
      */
     public function delete() {
-        delete_option(self::storage_name);
+        delete_option(self::key);
     }
 
     /**

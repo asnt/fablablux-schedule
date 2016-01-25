@@ -7,7 +7,6 @@ class OptionsView {
     // Unique names for the form inputs.
     private static $input_names = array(
         "action" => "machine_action",
-        "page_id" => "machine_page_id",
         "machine_name" => "machine_machine_name",
         "slot_name" => "machine_slot_name",
         "machine_visible" => "machine_machine_visible",
@@ -30,7 +29,6 @@ class OptionsView {
         if ($action == "update") {
             $new_options = OptionsView::get_values();
 
-            $options['page_id'] = $new_options['page_id'];
             $options['machine_names'] = $new_options['machine_names'];
             $options['slot_names'] = $new_options['slot_names'];
             $options['visible_machines'] = $new_options['visible_machines'];
@@ -55,11 +53,9 @@ class OptionsView {
             echo($message);
         }
 
-        $selected_page_id = $options['page_id'];
         $current_timezone = $options['timezone'];        
         $opening_hours = $options['opening_hours'];        
         $inputs = array(
-            "page" => self::render_page_selector($selected_page_id),
             "machines" => self::render_machines(),
             "timeslots" => self::render_timeslots(),
             "opening_hours" => self::render_opening_hours($opening_hours),
@@ -99,7 +95,6 @@ END;
         $options = MachineScheduleOptions::instance();
         $input_names = self::$input_names;
 
-        $page_id = intval($_POST[$input_names['page_id']]);
         $opening_hours = $_POST[$input_names['opening_hours']];
         $timezone = $_POST[$input_names['timezone']];
 
@@ -144,7 +139,6 @@ END;
         }
 
         $values = array();
-        $values['page_id'] = $page_id;
         $values['machine_names'] = $machine_names;
         $values['slot_names'] = $slot_names;
         $values['visible_machines'] = $visible_machines;
@@ -154,33 +148,6 @@ END;
         $values['timezone'] = $timezone;
 
         return $values;
-    }
-
-    /**
-     * Render a select input with the list of pages.
-     *
-     * @return string
-     */
-    private static function render_page_selector($selected_page_id) {
-        $input_names = self::$input_names;
-        
-        $html = "<select name='${input_names['page_id']}'>";
-        $html .= "<option value='-1'></option>";
-
-        foreach(get_pages() as $page) {
-            $title = $page->post_title;
-            $id = $page->ID;
-            if ($id == $selected_page_id) {
-                $html .= "<option value='$id' selected='selected'>$title" .
-                         "</option>";
-            } else {
-                $html .= "<option value='$id'>$title</option>";
-            }
-        }
-
-        $html .= "</select>";
-
-        return $html;
     }
 
     /**
@@ -295,17 +262,6 @@ END;
 <table class="form-table">
 
 <tr>
-<th scope="row">
-<label for="${input_names['page_id']}">Target page:</label>
-</th>
-<td>
-${inputs['page']}
-<p class="description">The page where to display the schedule.</p>
-<p class="description">If blank, the schedule is not displayed.</p>
-</td>
-</tr>
-
-<tr>
 <th scope="row"><label>Machines:</label></th>
 <td>
 ${inputs['machines']}
@@ -371,7 +327,6 @@ END;
         return $html;
     }
 
-
     /**
      * Parse the textfield of opening hours.
      *
@@ -381,7 +336,16 @@ END;
         $opening_hours = array();
         $entries = explode("\n", $string);
         foreach($entries as $entry) {
+            $entry = trim($entry);
+            if ($entry == "") {
+                continue;
+            }
+
             $tokens = explode(" ", $entry);
+            if (count($tokens) != 3) {
+                continue;
+            }
+
             $day = $tokens[0];
             $start = date_parse_from_format("H:i", $tokens[1]);
             $end = date_parse_from_format("H:i", $tokens[2]);

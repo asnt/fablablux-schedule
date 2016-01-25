@@ -99,7 +99,7 @@ class MachineScheduleApi {
      * @return string
      */
     public function get_schedule() {
-        $table = Table::get($this->options["page_id"]);
+        $table = Table::get();
         $data = array(
             'table' => $table,
         );
@@ -114,8 +114,7 @@ class MachineScheduleApi {
      */
     public function update_schedule(WP_REST_Request $request) {
         $table = $request['table'];
-        $page_id = $this->options['page_id'];
-        $success = Table::update($page_id, $table);
+        $success = Table::update($table);
         if ($success) {
             $data = array(
                 'code' => 'updated',

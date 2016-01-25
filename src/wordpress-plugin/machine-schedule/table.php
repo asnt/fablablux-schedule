@@ -1,33 +1,24 @@
 <?php
 
+include_once(plugin_dir_path(__FILE__) . 'options.php');
+
 /**
  * Access to the table of a given page.
  */
 class Table {
-    private static $key = "machine_schedule_table";
 
-    public static function get($page_id) {
-        if (!is_post_type("page", $page_id)) {
-            return "";
-        }
-
-        $single = true;
-        $table_json = get_post_meta($page_id, self::$key, $single);
-        $table = json_decode($table_json);
-
-        return $table;
+    public static function get() {
+        $options = MachineScheduleOptions::instance();
+        return $options['_table'];
     }
 
     /**
      * Get the schedule with visible machines and slots only.
      *
-     * @return array array("table" => array(),         // M x N
-     *                     "machine_names" => array(), // M
-     *                     "slot_names" => array(),    // N
-     *                     )
+     * @return array
      */
-    public static function get_visible($page_id) {
-        $table = Table::get($page_id);
+    public static function get_visible() {
+        $table = Table::get();
 
         $options = MachineScheduleOptions::instance();
         $machine_mask = $options['visible_machines'];
@@ -59,35 +50,12 @@ class Table {
         return $masked_slot_names;
     }
 
-    public static function update($page_id, $table) {
-        if (!is_post_type("page", $page_id)) {
-            return false;
-        }
-
-        $json_table = json_encode($table);
-        $result = update_post_meta($page_id, self::$key, $json_table);
-        // $result is true or integer on success. Convert to a boolean return
-        // value.
-        $success = $result != false;
-
-        return $success;
+    public static function update($table) {
+        $options = MachineScheduleOptions::instance();
+        $options['_table'] = $table;
+        $options->save();
+        return true;
     }
-}
-
-/**
- * Check if a post is of of a given type.
- *
- * @param string $type The post type.
- * @param int $post_id
- *
- * @return bool True if the requested type matched the post.
- */
-function is_post_type($type, $post_id) {
-    $post = get_post($post_id);
-    if (is_null($post)) {
-        return false;
-    }
-    return $post->post_type == $type;
 }
 
 /**
