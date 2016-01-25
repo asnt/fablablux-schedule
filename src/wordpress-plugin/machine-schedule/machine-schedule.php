@@ -11,19 +11,11 @@ defined('ABSPATH') or exit;
 include_once(plugin_dir_path(__FILE__) . 'open-access.php');
 include_once(plugin_dir_path(__FILE__) . 'options.php');
 include_once(plugin_dir_path(__FILE__) . 'rest-api.php');
+include_once(plugin_dir_path(__FILE__) . 'schedule-view.php');
 include_once(plugin_dir_path(__FILE__) . 'table.php');
 
 /**
  * Display the machine use schedule during open access time.
- *
- * TODO:
- *
- * - Record and display a timestamp of the table update.
- * - Make the wordpress cookie authentication work.
- *   Probably requires the use of nonces with action 'wp_json'. Create the
- *   nonce on the server with wp_create_nonce('wp_json'). Pass it along to
- *   the client somehow. The client includes the header 'X-WP-Nonce' with the
- *   value of the nonce in every header.
  */
 class MachineSchedule {
 
@@ -102,46 +94,7 @@ class MachineSchedule {
             return $content;
         }
 
-        // Get the schedule data.
-        $table = Table::get_visible($page_id);
-        $machine_names = Table::get_visible_machines();
-        $slot_names = Table::get_visible_slots();
-
-        // Exit early if no data to display.
-        if (is_null($table)) {
-            return $content;
-        }
-
-        // Display the table.
-        $table_html = '<h2>Live Machine Use Schedule</h2>';
-        $table_html .= '<table class="machine-schedule-table"' .
-            ' style="border: none; border-spacing: 0.5em;">';
-        $table_html .= '<tr style="border: none;">';
-        $table_html .= '<td style="border: none; width: 20%"></td>';
-        foreach($slot_names as $slot_name) {
-            $table_html .= "<th style='border: none;'>$slot_name</th>";
-        }
-        $table_html .= '</tr>';
-        foreach($table as $machine_index => $slots) {
-            $table_html .= '<tr style="padding: 1em;">';
-            $machine_name = $machine_names[$machine_index];
-            $table_html .= "<th style='border: none;'>$machine_name</th>";
-            foreach($slots as $in_use) {
-                if ($in_use) {
-                    $class = '';
-                    $style = 'background-color: #f78181;';   // red
-                } else {
-                    $class = '';
-                    $style = 'background-color: #81f781;';   // green
-                }
-                $style .= 'border: none;';
-                $table_html .= "<td class='$class' style='$style'></td>";
-            }
-            $table_html .= '</tr>';
-            $machine_index++;
-        }
-        $table_html .= '</table>';
-
+        $table_html = ScheduleView::render($page_id);
         $content = $table_html . $content;
 
         return $content;
