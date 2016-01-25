@@ -4,7 +4,7 @@ include_once(plugin_dir_path(__FILE__) . 'options.php');
 
 class OptionsView {
 
-    // Define unique names for the form inputs.
+    // Unique names for the form inputs.
     private static $input_names = array(
         "action" => "machine_action",
         "page_id" => "machine_page_id",
@@ -42,9 +42,11 @@ class OptionsView {
 
             $message = "<div><p><strong>Changes saved!</strong></p></div>";
             echo($message);
+        // Ask confirmation before reset.
         } else if ($action == "reset") {
             echo(self::render_confirmation());
             return;
+        // Do the reset.
         } else if ($action == 'confirm-reset' &&
                    isset($_POST['button-confirm-reset'])) {
             $options->reset();
