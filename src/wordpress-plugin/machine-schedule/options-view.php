@@ -213,7 +213,7 @@ END;
         $input_names = self::$input_names;
 
         $html = "<textarea name='${input_names['opening_hours']}'" .
-                         " rows='5' cols='15'>";
+                         " rows='5'>";
         $html .= self::format_opening_hours($opening_hours);
         $html .= "</textarea>";
 
