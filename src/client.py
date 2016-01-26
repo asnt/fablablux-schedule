@@ -30,7 +30,7 @@ class ScheduleService:
         self.base_url = base_url + ScheduleService.base_route
 
     def url_for(self, service):
-        if service not in ScheduleService.routes:
+        if service not in ScheduleService.endpoints:
             raise ValueError("uknown service {}".format(service))
         endpoint = ScheduleService.endpoints[service]
         return self.base_url + endpoint
