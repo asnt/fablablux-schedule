@@ -19,7 +19,7 @@ def load_config(filename):
 class ScheduleService:
 
     base_route = "?rest_route=/open-access/v1"
-    routes = {
+    endpoints = {
             "status": "/",
             "schedule": "/machine-schedule",
     }
@@ -32,8 +32,8 @@ class ScheduleService:
     def url_for(self, service):
         if service not in ScheduleService.routes:
             raise ValueError("uknown service {}".format(service))
-        route = ScheduleService.routes[service]
-        return self.base_url + route
+        endpoint = ScheduleService.endpoints[service]
+        return self.base_url + endpoint
 
 
 def status(config):
