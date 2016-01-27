@@ -1,4 +1,5 @@
 import configparser
+import json
 
 import numpy as np
 import requests
@@ -54,7 +55,12 @@ def get_table(config):
 
     print(url)
     print('get schedule: ', r.status_code)
-    print(r.text)
+    #print(r.text)
+    table = json.loads(r.json()).get("table", None)
+    if table is not None:
+        print_table(table)
+    else:
+        print(r.text)
 
 
 def post_table(table, config):
@@ -66,7 +72,22 @@ def post_table(table, config):
 
     print(url)
     print('post schedule: ', r.status_code)
-    print(r.json())
+    data = json.loads(r.json()).get("data", None)
+    if data is None:
+        table = None
+    else:
+        table = data.get("table", None)
+    if table is not None:
+        print_table(table)
+    else:
+        print(r.text)
+
+
+def print_table(table):
+    for row in table:
+        for cell in row:
+            print(cell and "X" or "-", end=" ")
+        print()
 
 
 def usage():
