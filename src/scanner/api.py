@@ -80,54 +80,64 @@ def generate_random_table():
     return table
 
 
-def usage():
-    import sys
-    usage_message = """\
-Utility for interacting with the machine schedule api.
+usage_message = """\
+Interect with the schedule REST api.
 
 usage: {} [options] <status|get|post>
 
 commands:
     status  get the status of the open access
-    get     get the latest machine schedule
-    post    post a random machine schedule
+    get     get the latest schedule
+    post    post a random schedule
 
 options:
     --config <filename>
-""".format(sys.argv[0])
-    print(usage_message)
+"""
+
+def usage():
+    import sys
+    message = usage_message.format(sys.argv[0])
+    print(message)
+
+
+def parse_arguments(raw_args):
+    args = dict(config_file="schedule.cfg")
+
+    if "--config" in raw_args:
+        index = raw_args.index("--config")
+        args['config_file'] = raw_args[index + 1]
+        del raw_args[index:index + 2]
+
+    args['command'] = raw_args[0]
+
+    return args
 
 
 def main():
     import sys
-    args = sys.argv[1:]
-
-    if "--config" in args:
-        index = args.index("--config")
-        config_filename = args[index + 1]
-        del args[index + 1]
-        del args[index]
-    else:
-        config_filename = "schedule.cfg"
-
-    if len(args) == 0:
+    try:
+        args = parse_arguments(sys.argv[1:])
+    except Exception as e:
+        print(e)
         usage()
         sys.exit(1)
         
     import config
-    config = config.load(config_filename)
+    config = config.load(args['config_file'])
     schedule = ScheduleService(config['base_url'], config['username'],
                                                    config['password'])
 
-    cmd = args[0]
-    if cmd == "status":
+    command = args['command']
+    if command == "status":
         schedule.status()
-    elif cmd == "get":
+    elif command == "get":
         schedule.get()
-    elif cmd == "post":
+    elif command == "post":
         table = generate_random_table()
         schedule.post(table)
     else:
+        print("unknown command: " + str(command))
+        print()
         usage()
         sys.exit(1)
 
