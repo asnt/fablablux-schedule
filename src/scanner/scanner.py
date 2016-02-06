@@ -6,36 +6,35 @@ import cv2
 import numpy as np
 
 
-def rectify(image, reference, detector='surf', n_features=5000, debug=False):
-    """Transform an image to fit the reference image.
+debug = False
 
+
+def make_detector_matcher(detector_name, n_features):
+    """Construct the detector and matcher objects.
+    
     Parameters
     ----------
-    image : (M, N)
-        Image to rectify.
-    reference : (P, Q)
-        Reference image.
-    detector: string, optional
-        The feature detector to be used.
-    n_features: int, optional
-        The number of features to use.
-    debug : bool, optional
-        Displays some debug infos and saves intermediate results as images.
+    detector_name :
+        Detector name (SURF, SIFT, ORB).
+    n_features :
+        Number of feature points to detect. Does not apply to SURF.
 
     Returns
     -------
-    recified : (M', N')
-        The rectified image.
+    detector :
+        The detector object.
+    matcher :
+        The matcher object.
     """
-    detector_name = detector
-    if detector == 'orb':
+    if detector_name == 'orb':
         detector = cv2.ORB(nfeatures=n_features)
         matcher = cv2.BFMatcher(normType=cv2.NORM_HAMMING, crossCheck=True)
-    elif detector == 'sift':
+    elif detector_name == 'sift':
         detector = cv2.SIFT(nfeatures=n_features)
         matcher = cv2.BFMatcher(crossCheck=True)
-    elif detector == 'surf':
-        detector = cv2.SURF()
+    elif detector_name == 'surf':
+        detector = cv2.SURF(hessianThreshold=300, upright=True)
+        #detector = cv2.SURF()
         matcher = cv2.BFMatcher(crossCheck=True)
     else:
         raise ValueError('unknown detector: {:s}'.format(detector) +
@@ -46,105 +45,119 @@ def rectify(image, reference, detector='surf', n_features=5000, debug=False):
         if detector_name != 'surf':
             print('n_features = ' + str(n_features))
 
-    keypoints1, descriptors1 = detector.detectAndCompute(reference, None)
-    keypoints2, descriptors2 = detector.detectAndCompute(image, None)
-
-    matches = matcher.match(descriptors1, descriptors2)
-    keypoints1 = np.array([keypoints1[int(m.queryIdx)].pt for m in matches],
-            dtype=np.float32)
-    keypoints2 = np.array([keypoints2[int(m.trainIdx)].pt for m in matches],
-            dtype=np.float32)
-
-    transform_matrix, mask = cv2.findHomography(keypoints1, keypoints2,
-            cv2.RANSAC, 7)
-    inliers = mask.ravel().tolist()
-
-    rectified = cv2.warpPerspective(image, transform_matrix, reference.T.shape,
-            None, cv2.WARP_INVERSE_MAP)
-
-    if debug:
-        try:
-            import matplotlib.pyplot as plt
-            from skimage.feature import plot_matches
-            fig, ax = plt.subplots()
-            seq = np.arange(len(keypoints1))[:, np.newaxis]
-            matches = np.tile(seq, (1, 2))
-            kp1 = np.roll(keypoints1, 1, axis=1)
-            kp2 = np.roll(keypoints2, 1, axis=1)
-            plot_matches(ax, reference, image, kp1, kp2, matches)
-            ax.axis('off')
-            plt.savefig('debug/matched.png')
-        except:
-            pass
-
-    return rectified
+    return detector, matcher
 
 
-def find_occupation(image, debug=False):
-    """Find which slots are booked in the occupation table.
+def unwarp(image, template, detector_name='surf', n_features=5000):
+    """Transform an image to fit the template.
 
     Parameters
     ----------
     image : (M, N)
-        Aligned image of the occupation table.
-    debug : bool, optional
-        Displays some debug infos and saves intermediate results as images.
+        Image to rectify.
+    template : (P, Q)
+        Template image.
+    detector_name : string, optional
+        The feature detector to be used.
+    n_features : int, optional
+        The number of features to use.
 
     Returns
     -------
-    occupation : (N_MACHINES, N_SLOTS), bool
-        Occupation matrix (True if slot occupied).
-    output_image:
-        Image with detected slots highlighted.
+    unwarped : (M', N')
+        The unwarped image.
     """
-    n_machines = 7
-    n_slots = 9
-    occupation = np.zeros((n_machines, n_slots), dtype=bool)
+    detector, matcher = make_detector_matcher(detector_name, n_features)
 
-    # Position of the top-left slot of the table
-    r0, c0 = 140, 115
-    # Distance between successive rows (vertical direction)
-    d_rows = np.array([0, 62.5, 125, 220, 285, 375, 465])
-    d_rows = d_rows / 2 # using half resolution image
-    # Distance between successive cols (horizontal direction)
-    d_cols = 78 * np.arange(n_slots)
-    d_cols = d_cols / 2 # using half resolution image
-    # Absolution position of the slots
-    row_tile = np.tile(d_rows[:, np.newaxis], (1, n_slots))
-    col_tile = np.tile(d_cols, (n_machines, 1))
-    slot_position = np.dstack((r0 + row_tile, c0 + col_tile))
+    keypoints1, descriptors1 = detector.detectAndCompute(template, None)
+    keypoints2, descriptors2 = detector.detectAndCompute(image, None)
 
+    matches = matcher.match(descriptors1, descriptors2)
+
+    # Get the keypoints as Nx2 arrays from the list of OpenCV keypoints.
+    keypoints1 = [keypoints1[int(m.queryIdx)].pt for m in matches]
+    keypoints1 = np.array(keypoints1, dtype=np.float32)
+    keypoints2 = [keypoints2[int(m.trainIdx)].pt for m in matches]
+    keypoints2 = np.array(keypoints2, dtype=np.float32)
+
+    #method = cv2.RANSAC
+    method = cv2.LMEDS
+    inlier_threshold = 7    # Only effective with RANSAC.
+    transform_matrix, mask = cv2.findHomography(keypoints1, keypoints2,
+                                                method, inlier_threshold)
+
+    unwarped = cv2.warpPerspective(image, transform_matrix, template.T.shape,
+                                   None, cv2.WARP_INVERSE_MAP)
+
+    return unwarped
+
+
+n_machines = 7
+n_slots = 9
+
+# radius of a square slot 
+slot_radius = 15
+
+# Position of the top-left slot of the table
+r0, c0 = 140, 115
+# Distance between successive rows (vertical direction)
+d_rows = np.array([0, 62.5, 125, 220, 285, 375, 465])
+d_rows = d_rows / 2 # using half resolution image
+# Distance between successive cols (horizontal direction)
+d_cols = 78 * np.arange(n_slots)
+d_cols = d_cols / 2 # using half resolution image
+# Absolution position of the slots
+row_tile = np.tile(d_rows[:, np.newaxis], (1, n_slots))
+col_tile = np.tile(d_cols, (n_machines, 1))
+slot_position = np.dstack((r0 + row_tile, c0 + col_tile))
+
+
+def find_booked_slots(image):
+    """Find which slots are booked in the schedule.
+
+    Parameters
+    ----------
+    image : (M, N)
+        Aligned image of the schedule table.
+
+    Returns
+    -------
+    schedule : (N_MACHINES, N_SLOTS), bool
+        Schedule matrix (True if slot scheduled).
+    """
     image_float = image.astype(float)
 
-    radius = 15     # radius of a square patch encompassing a slot
-
-    threshold = 2.5   # threshold at mean intensity level == 150
+    roughness_threshold = 2.5   # threshold at mean intensity level == 150
     # Adapt the threshold to the image mean intensity level.
     mean_intensity = image_float.mean()
-    threshold = threshold * (mean_intensity / 150)
+    roughness_threshold = roughness_threshold * (mean_intensity / 150)
 
     if debug:
-        print("roughness threshold = {:.2f}".format(threshold))
+        print("roughness threshold = {:.2f}".format(roughness_threshold))
     
     # Measure the slot roughness from which we deduce if a card is present.
     def roughness(patch):
         grad = np.gradient(patch)
         return np.mean(np.sqrt(grad[0]**2 + grad[1]**2))
 
-    # Small roughness level means card absent, i.e. slot booked.
-    # High roughness level means card present, i.e. not booked..
     def is_booked(patch):
-        return roughness(patch) < threshold
+        # A slot is booked if the card is absent, i.e. the roughness is low.
+        return roughness(patch) < roughness_threshold
 
     if debug:
         slot_roughness = np.zeros((n_machines, n_slots))
 
+    schedule = np.zeros((n_machines, n_slots), dtype=bool)
     for machine_index in range(n_machines):
         for slot_index in range(n_slots):
             r, c = slot_position[machine_index, slot_index]
-            patch = image_float[r-radius:r+radius, c-radius:c+radius]
+            rmin = r - slot_radius
+            rmax = r + slot_radius
+            cmin = c - slot_radius
+            cmax = c + slot_radius
+            patch = image_float[rmin:rmax, cmin:cmax]
             if is_booked(patch):
-                occupation[machine_index, slot_index] = True
+                schedule[machine_index, slot_index] = True
             if debug:
                 slot_roughness[machine_index, slot_index] = roughness(patch)
 
@@ -152,83 +165,103 @@ def find_occupation(image, debug=False):
         np.set_printoptions(precision=2)
         print(slot_roughness)
 
-    # Highlight the slots on the image for visualisation
+    return schedule
+
+
+def highlight_slots(image):
+    """Highlight the slots on the image for visualisation purpose.
+
+    Parameters
+    ----------
+    image : (M, N)
+        Image of the schedule.
+
+    Returns
+    -------
+    highlighted : (M, N)
+        Image with highlighted slots.
+    """
+    radius = 15
+
     slot_mask = np.ones_like(image, dtype=bool)
     for m in range(n_machines):
         for s in range(n_slots):
             r, c = slot_position[m, s]
-            patch = image_float[r-radius:r+radius, c-radius:c+radius]
-            # create a mask for the slot
-            slot_mask[r-radius:r+radius, c-radius:c+radius] = False
-    output_image = image.copy()
-    output_image[slot_mask] = 0.5 * output_image[slot_mask]
+            rmin = r - slot_radius
+            rmax = r + slot_radius
+            cmin = c - slot_radius
+            cmax = c + slot_radius
+            slot_mask[rmin:rmax, cmin:cmax] = False
 
-    return occupation, output_image
+    highlighted = image.copy()
+    highlighted[slot_mask] = 0.5 * highlighted[slot_mask]
+
+    return highlighted
 
 
-def scan_table(image, banner, detector=None, n_features=None, debug=False):
-    """Scan the image for the status of the slots in the occupation table.
+def scan(image, template, detector_name=None, n_features=None):
+    """Scan the schedule from the warped image.
 
     Parameters
     ----------
     image : (M, N, 3)
-        Image to scan.
-    banner : (M, N, 3)
-        Reference image of the banner.
-    detector: string, optional
-        The feature detector used to rectify the image.
+        Warped image of the schedule table.
+    template : (M, N, 3)
+        Non-warped template image of the schedule table.
+    detector_name: string, optional
+        The name of the feature detector to use.
     n_features: string, optional
-        The number of features for the detector.
-    debug : bool, optional
-        Displays some debug infos and saves intermediate results as images.
+        The number of features for the detector. This has no effect with the
+        SURF detector.
 
     Returns
     -------
-    table : (N_MACHINES, N_SLOTS), bool
+    schedule : (N_MACHINES, N_SLOTS), bool
         Boolean matrix indicating the booking status of the machines.
+    unwarped : (M, N)
+        Unwarped image.
     """
-    kwargs = dict(debug=debug)
-    if detector is not None:
-        kwargs['detector'] = detector
+    kwargs = dict()
+    if detector_name is not None:
+        kwargs['detector_name'] = detector_name
     if n_features is not None:
         kwargs['n_features'] = n_features
-    rectified = rectify(image, banner, **kwargs)
+    unwarped = unwarp(image, template, **kwargs)
 
     if debug:
-        cv2.imwrite('debug/banner.png', banner)
+        cv2.imwrite('debug/template.png', template)
         cv2.imwrite('debug/image.png', image)
-        cv2.imwrite('debug/rectified.png', rectified)
+        cv2.imwrite('debug/unwarped.png', unwarped)
 
-    occupation, output_image = find_occupation(rectified, debug=debug)
+    schedule = find_booked_slots(unwarped)
 
-    return occupation, output_image
+    return schedule, unwarped
 
 
-def print_occupation(occupation):
+def print_schedule(schedule):
     print("<table>")
-    for r in range(occupation.shape[0]):
-        for c in range(occupation.shape[1]):
-            print(occupation[r, c] and 'X' or '-', end=' ')
+    for r in range(schedule.shape[0]):
+        for c in range(schedule.shape[1]):
+            print(schedule[r, c] and 'X' or '-', end=' ')
         print()
     print("</table>")
 
 
-def parse_arguments():
+def parse_arguments(args):
     """Parse the command line arguments.
 
     Raise ValueError if the arguments are invalid or missing.
     """
-    args = sys.argv[1:]
+    params = dict(
+            detector='surf',
+            n_features=5000
+            )
 
-    params = dict(debug=False,
-                  detector='surf',
-                  n_features=5000)
-
+    if '-v' in args:
+        debug = True
+        del args[args.index('-v')]
     if '-d' in args:
-        params['debug'] = True
-        del args[args.index('-d')]
-    if '-f' in args:
-        index = args.index('-f')
+        index = args.index('-d')
         detector = args[index + 1]
         if detector not in ['orb', 'sift', 'surf']:
             raise ValueError('unknown detector: ' + detector + \
@@ -247,28 +280,30 @@ def parse_arguments():
     elif len(args) > 3:
         raise ValueError("too many arguments")
 
-    params['input_file'] = args[0]
-    params['banner_file'] = args[1]
+    params['template_file'] = args[0]
+    params['input_file'] = args[1]
     params['output_file'] = args[2]
 
     return params
 
 
 usage_message = """\
-Usage: python scan.py [options] input_image banner output_image
+Usage: python {} [options] <template_image> <input_image> <output_image>
 Options:
-    -d                  output debug messages and images
-    -f [surf|orb|sift]  feature detector, default surf
+    -v                  enable debug mode
+    -d [surf|orb|sift]  feature detector, default surf
     -n <integer>        number of features for orb and sift, default 5000
 """
 
 def usage():
-    print(usage_message)
+    import sys
+    print(usage_message.format(sys.argv[0]))
 
 
 def main():
+    import sys
     try:
-        params = parse_arguments()
+        params = parse_arguments(sys.argv[1:])
     except ValueError as e:
         print(e)
         print()
@@ -276,28 +311,31 @@ def main():
         sys.exit(1)
 
     image = cv2.imread(params['input_file'], cv2.CV_LOAD_IMAGE_GRAYSCALE)
-    banner = cv2.imread(params['banner_file'], cv2.CV_LOAD_IMAGE_GRAYSCALE)
+    template = cv2.imread(params['template_file'],
+                           cv2.CV_LOAD_IMAGE_GRAYSCALE)
 
     if image is None:
         print("could no read image '" + params['input_file'] + "'")
         sys.exit(1)
-    if banner is None:
-        print("could no read image '" + params['banner_file'] + "'")
+    if template is None:
+        print("could no read image '" + params['template_file'] + "'")
         sys.exit(1)
 
     import os.path
-    if params['debug'] and not os.path.exists('debug'):
+    if debug and not os.path.exists('debug'):
         import os
         os.mkdir('debug')
 
-    detector = params['detector']
+    detector_name = params['detector']
     n_features = params['n_features']
-    debug = params['debug']
-    occupation, output_image = scan_table(image, banner, detector=detector,
-                                          n_features=n_features,
-                                          debug=debug)
-    print_occupation(occupation)
-    cv2.imwrite(params['output_file'], output_image)
+    schedule, unwarped = scan(image, template,
+                              detector_name=detector_name,
+                              n_features=n_features)
+
+    print_schedule(schedule)
+
+    highlighted = highlight_slots(unwarped)
+    cv2.imwrite(params['output_file'], highlighted)
 
 
 if __name__ == "__main__":
