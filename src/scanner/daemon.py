@@ -148,16 +148,10 @@ def is_open_access():
     if r.status_code != 200:
         raise RuntimeError("could not get open access status")
     data = r.json()
-    # XXX: ugly hack needed here, why?
+    # XXX: Needs a second JSON parsing. Does the server return correct JSON?
     data = json.loads(data)
-    # XXX: data['open'] should be removed once it is not used on the server
-    #      side anymore
     is_open = data.get('open_access', False)
-    is_open_deprecated = data.get('open', False)
-    if is_open or is_open_deprecated:
-        return True
-    else:
-        return False
+    return is_open
         
 
 def post_table(table):
