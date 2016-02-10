@@ -12,6 +12,7 @@ import time
 import requests
 
 import api
+import config
 
 
 def get_script_dir():
@@ -38,14 +39,16 @@ def build_logger():
 logger = build_logger()
 
 
-config = {}
+conf = {}
 
 
 def run():
     while True:
         try:
-            if is_open_access() or config['force_open_access']:
-                logger.debug("open access : true")
+            if is_open_access() or conf['force_open_access']:
+                message = "open access : true"
+                message += conf['force_open_access'] and " (forced)" or ""
+                logger.debug(message)
                 scan()
             else:
                 logger.debug("open access : false")
@@ -61,12 +64,13 @@ def run():
 def run_no_camera():
     while True:
         try:
-            if is_open_access():
-                logger.debug("open access : true")
-                post_table(generate_random_table())
-            elif config['force_open_access']:
-                logger_debug("open access : true (forced)")
-                post_table(generate_random_table())
+            if is_open_access() or conf['force_open_access']:
+                message = "open access : true"
+                message += conf['force_open_access'] and " (forced)" or ""
+                logger.debug(message)
+                n_machines = conf['n_machines']
+                n_slots = conf['n_slots']
+                post_table(generate_random_table(n_machines, n_slots))
             else:
                 logger.debug("open access : false")
                 time.sleep(0.5)
@@ -142,7 +146,7 @@ def parse_table(table_string):
 
 def is_open_access():
     """Returns true during open access hours."""
-    service = api.ScheduleService(config['base_url'])
+    service = api.ScheduleService(conf['base_url'])
     url = service.url_for("status")
     r = requests.get(url)
     if r.status_code != 200:
@@ -155,24 +159,23 @@ def is_open_access():
         
 
 def post_table(table):
-    service = api.ScheduleService(config['base_url'])
+    service = api.ScheduleService(conf['base_url'])
     url = service.url_for("schedule")
-    params = dict(username=config['username'], password=config['password'])
+    params = dict(username=conf['username'], password=conf['password'])
     json_data = dict(table=table)
     r = requests.post(url, params=params, json=json_data)
     if r.status_code != 200:
         raise RuntimeError("could not post schedule")
 
 
-def generate_random_table():
-    n_machines = 7
-    n_slots = 9
+def generate_random_table(n_machines, n_slots):
     randbool = lambda: bool(random.randint(0, 1))
-    table = [[randbool() for __ in range(n_slots)] for __ in range(n_machines)]
+    table = [[randbool() for __ in range(n_slots)]
+             for __ in range(n_machines)]
     return table
 
 
-if __name__ == "__main__":
+def main():
     import sys
     args = sys.argv[1:]
 
@@ -182,20 +185,23 @@ if __name__ == "__main__":
         no_camera = True
     if "--config" in args:
         index = args.index("--config")
-        config_filename = args[index + 1]
+        conf_filename = args[index + 1]
         del args[index + 1]
         del args[index]
     else:
-        config_filename = os.path.join(get_script_dir(), "./conf/schedule.cfg")
+        conf_filename = os.path.join(get_script_dir(), "./conf/schedule.cfg")
 
-    import config
-    config = config.load(config_filename)
+    conf = config.load(conf_filename)
 
     if "--force-open-access" in args:
         del args[args.index("--force-open-access")]
-        config['force_open_access'] = True
+        conf['force_open_access'] = True
 
     if no_camera:
         run_no_camera()
     else:
         run()
+
+
+if __name__ == "__main__":
+    main()
