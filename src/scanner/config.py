@@ -35,6 +35,9 @@ def load(filename):
     config["column_offsets"] = parse_float_list(column_offsets)
     config["slot_size"] = parser.getint("table", "slot_size")
 
+    config["vertical_flip"] = parser.getbool("camera", "vertical_flip")
+    config["horizontal_flip"] = parser.getbool("camera", "horizontal_flip")
+
     return config
 
 

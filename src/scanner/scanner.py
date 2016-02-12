@@ -195,33 +195,26 @@ def compute_roughness_threshold(mean_intensity):
 
 class TableBlueprint:
 
+    def __init__(self, slot_offsets, slot_radius):
+        self.slot_offsets = np.array(slot_offsets)
+        self.shape = self.slot_offsets.shape
+        self.n_rows, self.n_cols, __ = self.shape
+        self.slot_radius = slot_radius
+
     @staticmethod
     def from_config(conf):
-        row_offsets = np.array(conf["row_offsets"])
-        column_offsets = np.array(conf["column_offsets"])
-        slot_offsets = make_slot_offsets(row_offsets, column_offsets)
+        row_offsets = conf["row_offsets"]
+        column_offsets = conf["column_offsets"]
+        slot_offsets = self._make_slot_offsets(row_offsets, column_offsets)
         slot_radius = int(conf["slot_size"] / 2)
         return TableBlueprint(slot_offsets, slot_radius)
 
-    def __init__(self, slot_offsets, slot_radius):
-        self.slot_offsets = slot_offsets
-        self.n_rows = slot_offsets.shape[0]
-        self.n_cols = slot_offsets.shape[1]
-        self.shape = (self.n_rows, self.n_cols)
-        self.slot_radius = slot_radius
-
-
-def make_slot_offsets(row_offsets, column_offsets):
-    return cartesian_product(row_offsets, column_offsets)
+    def _make_slot_offsets(row_offsets, column_offsets):
+        return cartesian_product(row_offsets, column_offsets)
 
 
 def cartesian_product(x, y):
-    n_rows = len(x)
-    n_cols = len(y)
-    tiled_x = np.tile(x[:, np.newaxis], (1, n_cols))
-    tiled_y = np.tile(y, (n_rows, 1))
-    xy = np.dstack((tiled_x, tiled_y))
-    return xy
+    return [[[valx, valy] for valy in y] for valx in x]
 
 
 def highlight_slots(image, table_blueprint):

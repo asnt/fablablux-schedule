@@ -111,6 +111,10 @@ def grab():
             '--width', '648',
             '--height', '486',
             ]
+    if conf['vertical_flip']:
+        args += ['--vflip']
+    if conf['horizontal_flip']:
+        args += ['--hflip']
     try:
         return_code = subprocess.check_output(args, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
