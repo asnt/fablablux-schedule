@@ -1,7 +1,0 @@
-src/instance/
-
-.pyc
-__pycache__/
-
-debug/
-backup/
