@@ -65,8 +65,9 @@ class ScheduleService:
 
 def print_table(table):
     for row in table:
-        for cell in row:
-            print(cell and "X" or "-", end=" ")
+        for booked in row:
+            symbol = "X" if booked else "-"
+            print(symbol, end=" ")
         print()
 
 
