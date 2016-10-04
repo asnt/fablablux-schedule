@@ -115,7 +115,7 @@ def grab():
     if conf['horizontal_flip']:
         args += ['--hflip']
     try:
-        return_code = subprocess.check_output(args, stderr=subprocess.STDOUT)
+        subprocess.check_output(args, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(e.output.decode("utf-8"))
     os.rename(tmp_image_name, image_name)
@@ -125,7 +125,7 @@ def grab():
 
 def process():
     capture_path = "/tmp/capture.png"
-    #capture_path = "/home/alarm/schedule-scanner/data/wall-test.png"
+    #  capture_path = "/home/alarm/schedule-scanner/data/wall-test.png"
     reference_path = "/home/alarm/schedule-scanner/data/wall-reference.png"
     processed_path = "/tmp/processed.png"
     args = ["python2", "/home/alarm/schedule-scanner/scanner.py", "-d",
@@ -143,7 +143,7 @@ def parse_table(table_string):
     end = rows.index("</table>")
     rows = rows[start + 1:end]
     table = [[x == 'X' for x in row.strip().split(" ")]
-                for row in rows if len(row) > 0]
+             for row in rows if len(row) > 0]
     return table
 
 
@@ -172,7 +172,8 @@ def post_table(table):
 
 
 def generate_random_table(n_machines, n_slots):
-    randbool = lambda: bool(random.randint(0, 1))
+    def randbool():
+        bool(random.randint(0, 1))
     table = [[randbool() for __ in range(n_slots)]
              for __ in range(n_machines)]
     return table

@@ -84,7 +84,7 @@ def unwarp(image, template, detector_name, n_features=5000):
     keypoints2 = [keypoints2[int(m.trainIdx)].pt for m in matches]
     keypoints2 = np.array(keypoints2, dtype=np.float32)
 
-    #method = cv2.RANSAC
+    #  method = cv2.RANSAC
     method = cv2.LMEDS
     inlier_threshold = 7    # Only effective with RANSAC.
     transform_matrix, mask = cv2.findHomography(keypoints1, keypoints2,
@@ -98,7 +98,7 @@ def unwarp(image, template, detector_name, n_features=5000):
 
 def make_detector_and_matcher(detector_name, n_features):
     """Construct the detector and matcher objects.
-    
+
     Parameters
     ----------
     detector_name :
@@ -129,6 +129,16 @@ def make_detector_and_matcher(detector_name, n_features):
     return detector, matcher
 
 
+def compute_roughness(image):
+    dx, dy = np.gradient(image)
+    return np.mean(np.sqrt(dx**2 + dy**2))
+
+
+def is_slot_absent(slot_image, threshold):
+    # A slot is booked if the card is absent, i.e. the roughness is low.
+    return compute_roughness(slot_image) < threshold
+
+
 def find_booked_slots(image, table_blueprint):
     """Find which slots are booked in the image of the schedule table.
 
@@ -137,7 +147,7 @@ def find_booked_slots(image, table_blueprint):
     image : (M, N)
         Aligned image of the schedule table.
     table_blueprint :
-        A TableBlueprint object giving the features of the table. 
+        A TableBlueprint object giving the features of the table.
 
     Returns
     -------
@@ -146,18 +156,10 @@ def find_booked_slots(image, table_blueprint):
     """
     image_float = image.astype(float)
     mean_intensity = image_float.mean()
-    roughness_threshold = compute_roughness_threshold(mean_intensity)
+    threshold = compute_roughness_threshold(mean_intensity)
 
     if debug:
-        print("roughness threshold = {:.2f}".format(roughness_threshold))
-    
-    def roughness(image_patch):
-        dx, dy = np.gradient(image_patch)
-        return np.mean(np.sqrt(dx**2 + dy**2))
-
-    def is_booked(slot_image):
-        # A slot is booked if the card is absent, i.e. the roughness is low.
-        return roughness(slot_image) < roughness_threshold
+        print("roughness threshold = {:.2f}".format(threshold))
 
     if debug:
         slot_roughness = np.zeros(table_blueprint.shape)
@@ -172,10 +174,10 @@ def find_booked_slots(image, table_blueprint):
             c_min = c - table.slot_radius
             c_max = c + table.slot_radius
             slot = image_float[r_min:r_max, c_min:c_max]
-            if is_booked(slot):
+            if is_slot_absent(slot, threshold):
                 schedule[row_index, col_index] = True
             if debug:
-                slot_roughness[row_index, col_index] = roughness(patch)
+                slot_roughness[row_index, col_index] = compute_roughness(slot)
 
     if debug:
         np.set_printoptions(precision=2)
@@ -187,10 +189,10 @@ def find_booked_slots(image, table_blueprint):
 def compute_roughness_threshold(mean_intensity):
     """Compute a roughness threshold adjusted to the given mean intensity."""
     reference_mean_intensity_level = 150
-    roughness_threshold_at_reference = 2.5
-    roughness_threshold = roughness_threshold_at_reference * \
-                          (mean_intensity / reference_mean_intensity_level)
-    return roughness_threshold
+    threshold_at_reference = 2.5
+    threshold = threshold_at_reference \
+        * (mean_intensity / reference_mean_intensity_level)
+    return threshold
 
 
 class TableBlueprint:
@@ -205,7 +207,8 @@ class TableBlueprint:
     def from_config(conf):
         row_offsets = conf["row_offsets"]
         column_offsets = conf["column_offsets"]
-        slot_offsets = self._make_slot_offsets(row_offsets, column_offsets)
+        slot_offsets = TableBlueprint._make_slot_offsets(row_offsets,
+                                                         column_offsets)
         slot_radius = int(conf["slot_size"] / 2)
         return TableBlueprint(slot_offsets, slot_radius)
 
@@ -225,7 +228,7 @@ def highlight_slots(image, table_blueprint):
     image : (M, N)
         Image of the schedule.
     table_blueprint :
-        A TableBlueprint object giving the features of the table. 
+        A TableBlueprint object giving the features of the table.
 
     Returns
     -------
@@ -249,7 +252,6 @@ def highlight_slots(image, table_blueprint):
 
 
 def main():
-    import sys
     try:
         params = parse_arguments(sys.argv[1:])
     except ValueError as e:
@@ -260,7 +262,7 @@ def main():
 
     image = cv2.imread(params['input_file'], cv2.CV_LOAD_IMAGE_GRAYSCALE)
     template = cv2.imread(params['template_file'],
-                           cv2.CV_LOAD_IMAGE_GRAYSCALE)
+                          cv2.CV_LOAD_IMAGE_GRAYSCALE)
 
     if image is None:
         print("could no read image '" + params['input_file'] + "'")
@@ -288,8 +290,8 @@ Options:
     -n <integer>        number of features for orb and sift, default 5000
 """
 
+
 def usage():
-    import sys
     print(usage_message.format(sys.argv[0]))
 
 
@@ -298,10 +300,12 @@ def parse_arguments(args):
 
     Raise ValueError if the arguments are invalid or missing.
     """
+    global debug
+
     params = dict(
-            detector='surf',
-            n_features=5000
-            )
+        detector='surf',
+        n_features=5000
+    )
 
     if '-v' in args:
         debug = True
@@ -310,8 +314,8 @@ def parse_arguments(args):
         index = args.index('-d')
         detector = args[index + 1]
         if detector not in ['orb', 'sift', 'surf']:
-            raise ValueError('unknown detector: ' + detector + \
-                             "(must be one of 'orb', 'sift', 'surf'")
+            msg = "unknown detector: {} (must be 'orb', 'sift' or 'surf')"
+            raise ValueError(msg.format(detector))
         params['detector'] = detector
         del args[index + 1]
         del args[index]
