@@ -81,7 +81,7 @@ def generate_random_table():
 
 
 usage_message = """\
-Interect with the schedule REST api.
+Interact with the schedule REST api.
 
 usage: {} [options] <status|get|post>
 
@@ -121,7 +121,7 @@ def main():
         print(e)
         usage()
         sys.exit(1)
-        
+
     import config
     config = config.load(args['config_file'])
     schedule = ScheduleService(config['base_url'], config['username'],
