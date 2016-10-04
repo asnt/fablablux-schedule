@@ -5,7 +5,7 @@ import sys
 import cv2
 import numpy as np
 
-import config
+from fablab_schedule import config
 
 
 debug = False

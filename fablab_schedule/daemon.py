@@ -11,8 +11,7 @@ import time
 
 import requests
 
-import api
-import config
+from fablab_schedule import api, config
 
 
 def get_script_dir():
@@ -90,7 +89,7 @@ def scan():
     output = process()
 
     logger.debug("parse table")
-    table = parse_table(output) 
+    table = parse_table(output)
 
     logger.debug("post table")
     post_table(table)
@@ -137,7 +136,7 @@ def process():
     return output
 
 
-def parse_table(table_string): 
+def parse_table(table_string):
     """Parse a table of space-separated boolean values into a 2d list."""
     rows = table_string.split("\n")
     start = rows.index("<table>")
@@ -160,7 +159,7 @@ def is_open_access():
     data = json.loads(data)
     is_open = data.get('open_access', False)
     return is_open
-        
+
 
 def post_table(table):
     service = api.ScheduleService(conf['base_url'])
