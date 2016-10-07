@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import argparse
 import sys
 
 import cv2
@@ -252,13 +253,7 @@ def highlight_slots(image, table_blueprint):
 
 
 def main():
-    try:
-        params = parse_arguments(sys.argv[1:])
-    except ValueError as e:
-        print(e)
-        print()
-        usage()
-        sys.exit(1)
+    params = parse_arguments()
 
     image = cv2.imread(params['input_file'], cv2.CV_LOAD_IMAGE_GRAYSCALE)
     template = cv2.imread(params['template_file'],
@@ -282,57 +277,37 @@ def main():
     cv2.imwrite(params['output_file'], highlighted)
 
 
-usage_message = """\
-Usage: python {} [options] <template_image> <input_image> <output_image>
-Options:
-    -v                  enable debug mode
-    -d [surf|orb|sift]  feature detector, default surf
-    -n <integer>        number of features for orb and sift, default 5000
-"""
-
-
-def usage():
-    print(usage_message.format(sys.argv[0]))
-
-
-def parse_arguments(args):
+def parse_arguments():
     """Parse the command line arguments.
 
-    Raise ValueError if the arguments are invalid or missing.
+    Return a dictionnary of parameters.
     """
     global debug
 
-    params = dict(
-        detector='surf',
-        n_features=5000
-    )
+    description = "Scan the FabLab wall schedule"
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="display debug information")
+    parser.add_argument("-d", "--detector", choices=["orb", "sift", "surf"],
+                        default="surf",
+                        help="select feature detector (default: %(default)s)")
+    parser.add_argument("-f", "--features", type=int, default=5000,
+                        help="number of features to detect "
+                             "(default: %(default)d)")
+    parser.add_argument("reference", help="reference image")
+    parser.add_argument("input", help="input image")
+    parser.add_argument("output", help="output image")
 
-    if '-v' in args:
+    args = parser.parse_args()
+    if args.verbose:
         debug = True
-        del args[args.index('-v')]
-    if '-d' in args:
-        index = args.index('-d')
-        detector = args[index + 1]
-        if detector not in ['orb', 'sift', 'surf']:
-            msg = "unknown detector: {} (must be 'orb', 'sift' or 'surf')"
-            raise ValueError(msg.format(detector))
-        params['detector'] = detector
-        del args[index + 1]
-        del args[index]
-    if '-n' in args:
-        index = args.index('-n')
-        params['n_features'] = int(args[index + 1])
-        del args[index + 1]
-        del args[index]
-
-    if len(args) < 3:
-        raise ValueError("not enough arguments")
-    elif len(args) > 3:
-        raise ValueError("too many arguments")
-
-    params['template_file'] = args[0]
-    params['input_file'] = args[1]
-    params['output_file'] = args[2]
+    params = dict(
+        detector=args.detector,
+        n_features=args.features,
+        template_file=args.reference,
+        input_file=args.input,
+        output_file=args.output,
+    )
 
     return params
 
