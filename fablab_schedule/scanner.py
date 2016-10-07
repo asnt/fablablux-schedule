@@ -135,7 +135,7 @@ def compute_roughness(image):
     return np.mean(np.sqrt(dx**2 + dy**2))
 
 
-def is_slot_absent(slot_image, threshold):
+def is_card_absent(slot_image, threshold):
     # A slot is booked if the card is absent, i.e. the roughness is low.
     return compute_roughness(slot_image) < threshold
 
@@ -175,7 +175,7 @@ def find_booked_slots(image, table_blueprint):
             c_min = c - table.slot_radius
             c_max = c + table.slot_radius
             slot = image_float[r_min:r_max, c_min:c_max]
-            if is_slot_absent(slot, threshold):
+            if is_card_absent(slot, threshold):
                 schedule[row_index, col_index] = True
             if debug:
                 slot_roughness[row_index, col_index] = compute_roughness(slot)
