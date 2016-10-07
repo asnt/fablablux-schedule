@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -38,15 +39,15 @@ def build_logger():
 logger = build_logger()
 
 
-conf = {}
+_config = {}
 
 
 def run_with_camera():
     while True:
         try:
-            if is_open_access() or conf['force_open_access']:
+            if is_open_access() or _config['force_open_access']:
                 message = "open access : true"
-                message += conf['force_open_access'] and " (forced)" or ""
+                message += _config['force_open_access'] and " (forced)" or ""
                 logger.debug(message)
                 scan()
             else:
@@ -63,12 +64,12 @@ def run_with_camera():
 def run_without_camera():
     while True:
         try:
-            if is_open_access() or conf['force_open_access']:
+            if is_open_access() or _config['force_open_access']:
                 message = "open access : true"
-                message += conf['force_open_access'] and " (forced)" or ""
+                message += _config['force_open_access'] and " (forced)" or ""
                 logger.debug(message)
-                n_machines = conf['n_machines']
-                n_slots = conf['n_slots']
+                n_machines = _config['n_machines']
+                n_slots = _config['n_slots']
                 post_table(generate_random_table(n_machines, n_slots))
             else:
                 logger.debug("open access : false")
@@ -110,9 +111,9 @@ def grab():
             '--width', '648',
             '--height', '486',
             ]
-    if conf['vertical_flip']:
+    if _config['vertical_flip']:
         args += ['--vflip']
-    if conf['horizontal_flip']:
+    if _config['horizontal_flip']:
         args += ['--hflip']
     try:
         subprocess.check_output(args, stderr=subprocess.STDOUT)
@@ -149,7 +150,7 @@ def parse_table(table_string):
 
 def is_open_access():
     """Returns true during open access hours."""
-    service = api.ScheduleService(conf['base_url'])
+    service = api.ScheduleService(_config['base_url'])
     url = service.url_for("status")
     r = requests.get(url)
     if r.status_code != 200:
@@ -162,9 +163,9 @@ def is_open_access():
 
 
 def post_table(table):
-    service = api.ScheduleService(conf['base_url'])
+    service = api.ScheduleService(_config['base_url'])
     url = service.url_for("schedule")
-    params = dict(username=conf['username'], password=conf['password'])
+    params = dict(username=_config['username'], password=_config['password'])
     json_data = dict(table=table)
     r = requests.post(url, params=params, json=json_data)
     if r.status_code != 200:
@@ -180,31 +181,26 @@ def generate_random_table(n_machines, n_slots):
 
 
 def run():
-    import sys
-    args = sys.argv[1:]
+    global _config
 
-    no_camera = False
-    if "--no-camera" in args:
-        del args[args.index("--no-camera")]
-        no_camera = True
-    if "--config" in args:
-        index = args.index("--config")
-        config_filename = args[index + 1]
-        del args[index + 1]
-        del args[index]
+    description = "Daemon for the FabLab wall schedule scanner"
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("-c", "--config", help="alternate config file")
+    parser.add_argument("-d", "--disable-camera", action="store_true",
+                        help="disable camera grabbing")
+    parser.add_argument("-s", "--force-scanning", action="store_true",
+                        help="force scanning even outside open access hours")
+    args = parser.parse_args()
+
+    if args.config:
+        _config = config.load(args.config)
     else:
-        config_filename = ""
+        _config = config.load_default()
 
-    if config_filename:
-        conf = config.load(config_filename)
-    else:
-        conf = config.load_default()
+    if args.force_scanning:
+        config["force_open_access"] = True
 
-    if "--force-open-access" in args:
-        del args[args.index("--force-open-access")]
-        conf['force_open_access'] = True
-
-    if no_camera:
+    if args.disable_camera:
         run_without_camera()
     else:
         run_with_camera()
