@@ -24,7 +24,7 @@ setup(
     },
     entry_points = {
         "console_scripts": [
-            "fablab_schedule_d=fablab_schedule.daemon:run",
+            "fablab_schedule_daemon=fablab_schedule.daemon:run",
         ]
     }
 )
