@@ -41,7 +41,7 @@ logger = build_logger()
 conf = {}
 
 
-def run():
+def run_with_camera():
     while True:
         try:
             if is_open_access() or conf['force_open_access']:
@@ -60,7 +60,7 @@ def run():
             pass
 
 
-def run_no_camera():
+def run_without_camera():
     while True:
         try:
             if is_open_access() or conf['force_open_access']:
@@ -189,22 +189,25 @@ def run():
         no_camera = True
     if "--config" in args:
         index = args.index("--config")
-        conf_filename = args[index + 1]
+        config_filename = args[index + 1]
         del args[index + 1]
         del args[index]
     else:
-        conf_filename = os.path.join(get_script_dir(), "./conf/schedule.cfg")
+        config_filename = ""
 
-    conf = config.load(conf_filename)
+    if config_filename:
+        conf = config.load(config_filename)
+    else:
+        conf = config.load_default()
 
     if "--force-open-access" in args:
         del args[args.index("--force-open-access")]
         conf['force_open_access'] = True
 
     if no_camera:
-        run_no_camera()
+        run_without_camera()
     else:
-        run()
+        run_with_camera()
 
 
 if __name__ == "__main__":
