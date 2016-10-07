@@ -133,8 +133,8 @@ def process():
     capture_path = "/tmp/capture.png"
     reference_path = get_reference_image_path()
     processed_path = "/tmp/processed.png"
-    args = ["python2", "/home/alarm/schedule-scanner/scanner.py", "-d",
-            capture_path, reference_path, processed_path]
+    args = ["fablab_schedule_scan", "-v", capture_path, reference_path,
+            processed_path]
     output_bytes = subprocess.check_output(args)
     output = output_bytes.decode("ascii")
 
