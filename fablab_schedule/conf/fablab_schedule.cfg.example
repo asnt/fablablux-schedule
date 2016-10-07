@@ -1,0 +1,15 @@
+[table]
+n_machines: 7
+n_slots: 9
+row_offsets: 140, 171.25, 202.5, 250, 282.5, 327.5, 372.5
+column_offsets: 115, 154, 193, 232, 271, 310, 349, 388, 427
+slot_size: 30
+
+[camera]
+vertical_flip: False
+horizontal_flip: False
+
+[api]
+base_url: http://my-wordpress-site.com
+username: myusername
+password: mypassword
