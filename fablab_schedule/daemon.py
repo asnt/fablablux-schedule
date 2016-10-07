@@ -6,6 +6,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import os.path
+from pkg_resources import resource_filename
 import random
 import subprocess
 import time
@@ -124,10 +125,13 @@ def grab():
     return True
 
 
+def get_reference_image_path():
+    return resource_filename("fablab_schedule", "data/wall-reference.png")
+
+
 def process():
     capture_path = "/tmp/capture.png"
-    #  capture_path = "/home/alarm/schedule-scanner/data/wall-test.png"
-    reference_path = "/home/alarm/schedule-scanner/data/wall-reference.png"
+    reference_path = get_reference_image_path()
     processed_path = "/tmp/processed.png"
     args = ["python2", "/home/alarm/schedule-scanner/scanner.py", "-d",
             capture_path, reference_path, processed_path]
