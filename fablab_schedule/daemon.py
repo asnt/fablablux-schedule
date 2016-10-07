@@ -179,7 +179,7 @@ def generate_random_table(n_machines, n_slots):
     return table
 
 
-def main():
+def run():
     import sys
     args = sys.argv[1:]
 
@@ -208,4 +208,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run()
