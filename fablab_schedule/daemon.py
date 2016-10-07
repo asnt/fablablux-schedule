@@ -101,10 +101,10 @@ def grab():
 
     Raise RuntimeError if the command failed
     """
-    tmp_image_name = '/tmp/capture.png.tmp'
-    image_name = '/tmp/capture.png'
+    tmp_image_path = '/tmp/capture.png.tmp'
+    image_path = '/tmp/capture.png'
     args = ['/opt/vc/bin/raspistill',
-            '--output', tmp_image_name,
+            '--output', tmp_image_path,
             '--encoding', 'png',
             '--timeout', '1',
             '--exposure', 'auto',
@@ -119,7 +119,7 @@ def grab():
         subprocess.check_output(args, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(e.output.decode("utf-8"))
-    os.rename(tmp_image_name, image_name)
+    os.rename(tmp_image_path, image_path)
 
     return True
 
