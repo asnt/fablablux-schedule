@@ -1,6 +1,7 @@
 import logging
 import os
 from pkg_resources import resource_stream, resource_string
+from cStringIO import StringIO
 try:
     # Python 3
     import configparser
@@ -67,7 +68,12 @@ def load(filename="", config_string=None):
 
     parser = configparser.ConfigParser()
     if config_string is not None:
-        parser.read_string(config_string)
+        try:
+            parser.read_string(config_string)
+        except AttributeError:
+            # Python 2
+            config_stream = StringIO(config_string)
+            parser.readfp(config_stream)
     parser.read(filename)
 
     config = {}
