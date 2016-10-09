@@ -1,12 +1,15 @@
 # Maintainer: asnt <snt.alex@gmail.com>
-pkgname=fablab-schedule-git
+pkgname=python-fablab-schedule-git
 pkgver=latest
 pkgrel=1
-pkgdesc="FabLab wall schedule scanner"
+pkgdesc='FabLab wall schedule scanner'
 arch=('any')
 license=('GPL')
-depends=("python2" "python2-requests" "python2-opencv")
-makedepends=("git")
+depends=('python'
+         'python-numpy'
+         'python-requests'
+         'opencv')
+makedepends=('git')
 provides=("${pkgname%-git}")
 conflicts=("${pkgname%-git}")
 source=("$pkgname::git+http://github.com/asnt/${pkgname%-git}.git")
@@ -20,6 +23,6 @@ pkgver() {
 
 package() {
   cd "$srcdir/$pkgname"
-  make install DESTDIR="$pkgdir/" PREFIX="/usr"
+  python setup.py install --root="$pkgdir"
 }
 
