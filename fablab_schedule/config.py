@@ -56,45 +56,55 @@ def get():
     global _config
     path = get_config_file_path()
     if _config is None:
-        _config = load(path)
+        _config = load_default()
+        if os.path.exists(path):
+            _config.update(load_from_file(path))
     return _config
 
 
 def load_default():
     logger.info("load default config")
-    config_string = get_default_config_string().decode("utf-8")
-    return load(config_string=config_string)
+    default_config_string = get_default_config_string().decode("utf-8")
+    return load_from_string(default_config_string)
 
 
-def load(filename="", config_string=None):
-    logger.info("load config")
-
+def load_from_string(config_string):
+    logger.info("load config from string")
     parser = configparser.ConfigParser()
-    if config_string is not None:
-        try:
-            parser.read_string(config_string)
-        except AttributeError:
-            # Python 2
-            config_stream = StringIO(config_string)
-            parser.readfp(config_stream)
+    try:
+        parser.read_string(config_string)
+    except AttributeError:
+        # Python 2
+        config_stream = StringIO(config_string)
+        parser.readfp(config_stream)
+    return make_config_dict_from_parser(parser)
+
+
+def load_from_file(filename):
+    logger.info("load config file %s", filename)
+    parser = configparser.ConfigParser()
     parser.read(filename)
+    return make_config_dict_from_parser(parser)
 
+
+def make_config_dict_from_parser(parser):
     config = {}
-    config["username"] = parser.get("api", "username")
-    config["password"] = parser.get("api", "password")
-    config["base_url"] = parser.get("api", "base_url")
-
-    config["n_machines"] = parser.getint("table", "n_machines")
-    config["n_slots"] = parser.getint("table", "n_slots")
-    row_offsets = parser.get("table", "row_offsets")
-    config["row_offsets"] = parse_float_list(row_offsets)
-    column_offsets = parser.get("table", "column_offsets")
-    config["column_offsets"] = parse_float_list(column_offsets)
-    config["slot_size"] = parser.getint("table", "slot_size")
-
-    config["vertical_flip"] = parser.getboolean("camera", "vertical_flip")
-    config["horizontal_flip"] = parser.getboolean("camera", "horizontal_flip")
-
+    if parser.has_section("api"):
+        config["username"] = parser.get("api", "username")
+        config["password"] = parser.get("api", "password")
+        config["base_url"] = parser.get("api", "base_url")
+    if parser.has_section("table"):
+        config["n_machines"] = parser.getint("table", "n_machines")
+        config["n_slots"] = parser.getint("table", "n_slots")
+        row_offsets = parser.get("table", "row_offsets")
+        config["row_offsets"] = parse_float_list(row_offsets)
+        column_offsets = parser.get("table", "column_offsets")
+        config["column_offsets"] = parse_float_list(column_offsets)
+        config["slot_size"] = parser.getint("table", "slot_size")
+    if parser.has_section("camera"):
+        config["vertical_flip"] = parser.getboolean("camera", "vertical_flip")
+        config["horizontal_flip"] = parser.getboolean("camera",
+                                                      "horizontal_flip")
     return config
 
 
