@@ -1,7 +1,10 @@
 import logging
 import os
 from pkg_resources import resource_stream, resource_string
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
 try:
     # Python 3
     import configparser
