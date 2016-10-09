@@ -252,12 +252,14 @@ def highlight_slots(image, table_blueprint):
     return highlighted
 
 
+def read_image_grayscale(filename):
+    return cv2.imread(filename, 0)
+
 def main():
     params = parse_arguments()
 
-    image = cv2.imread(params['input_file'], cv2.CV_LOAD_IMAGE_GRAYSCALE)
-    template = cv2.imread(params['template_file'],
-                          cv2.CV_LOAD_IMAGE_GRAYSCALE)
+    image = read_image_grayscale(params['input_file'])
+    template = read_image_grayscale(params['template_file'])
 
     if image is None:
         print("could no read image '" + params['input_file'] + "'")
