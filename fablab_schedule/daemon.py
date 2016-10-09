@@ -1,4 +1,5 @@
 import argparse
+import errno
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -14,24 +15,35 @@ import requests
 from fablab_schedule import api, config
 
 
-def get_script_dir():
-    return os.path.dirname(os.path.realpath(__file__))
+def get_log_file_path():
+    log_dir = "/var/log/"
+    log_file = "fablab_schedule.log"
+    path = os.path.join(log_dir, log_file)
+    return path
 
 
 def build_logger():
-    logfile = os.path.join(get_script_dir(), "schedule.log")
+    log_path = get_log_file_path()
 
     logger = logging.getLogger("schedule")
     logger.setLevel(logging.DEBUG)
+    format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+    logging.basicConfig(format=format)
 
-    file_handler = RotatingFileHandler(logfile, maxBytes=5e6, backupCount=1)
-    file_handler.setLevel(logging.DEBUG)
-
-    format = '%(asctime)s - %(levelname)s - %(message)s'
-    formatter = logging.Formatter(format)
-    file_handler.setFormatter(formatter)
-
-    logger.addHandler(file_handler)
+    try:
+        file_handler = RotatingFileHandler(log_path, maxBytes=5e6, backupCount=1)
+    except (OSError, IOError) as e:
+        # OSError for Python 3
+        # IOErro for Python 2
+        if e.errno == errno.EACCES:
+            logger.warning("cannot open log file %s: %s", log_path, e.strerror)
+        else:
+            raise(e)
+    else:
+        file_handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(format)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
     return logger
 
