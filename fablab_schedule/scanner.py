@@ -115,13 +115,14 @@ def make_detector_and_matcher(detector_name, n_features):
         The matcher object.
     """
     if detector_name == 'orb':
-        detector = cv2.ORB(nfeatures=n_features)
+        detector = cv2.ORB_create(nfeatures=n_features)
         matcher = cv2.BFMatcher(normType=cv2.NORM_HAMMING, crossCheck=True)
     elif detector_name == 'sift':
-        detector = cv2.SIFT(nfeatures=n_features)
+        detector = cv2.xfeatures2d.SIFT_create(nfeatures=n_features)
         matcher = cv2.BFMatcher(crossCheck=True)
     elif detector_name == 'surf':
-        detector = cv2.SURF(hessianThreshold=300, upright=True)
+        detector = cv2.xfeatures2d.SURF_create(hessianThreshold=300,
+                                               upright=True)
         matcher = cv2.BFMatcher(crossCheck=True)
     else:
         raise ValueError('unknown detector: {:s}'.format(detector) +
@@ -166,7 +167,7 @@ def find_booked_slots(image, table_blueprint):
         slot_roughness = np.zeros(table_blueprint.shape)
 
     table = table_blueprint
-    schedule = np.zeros(table.shape, dtype=bool)
+    schedule = np.zeros(table.shape[:2], dtype=bool)
     for row_index in range(table.n_rows):
         for col_index in range(table.n_cols):
             r, c = table.slot_offsets[row_index, col_index]
@@ -199,9 +200,9 @@ def compute_roughness_threshold(mean_intensity):
 class TableBlueprint:
 
     def __init__(self, slot_offsets, slot_radius):
-        self.slot_offsets = np.array(slot_offsets)
+        self.slot_offsets = np.array(slot_offsets, dtype=int)
         self.shape = self.slot_offsets.shape
-        self.n_rows, self.n_cols, __ = self.shape
+        self.n_rows, self.n_cols, _ = self.shape
         self.slot_radius = slot_radius
 
     @staticmethod
@@ -218,7 +219,7 @@ class TableBlueprint:
 
 
 def cartesian_product(x, y):
-    return [[[valx, valy] for valy in y] for valx in x]
+    return [[(valx, valy) for valy in y] for valx in x]
 
 
 def highlight_slots(image, table_blueprint):
@@ -254,6 +255,7 @@ def highlight_slots(image, table_blueprint):
 
 def read_image_grayscale(filename):
     return cv2.imread(filename, 0)
+
 
 def main():
     params = parse_arguments()
@@ -315,12 +317,14 @@ def parse_arguments():
 
 
 def print_schedule(schedule):
-    print("<table>")
+    table_string = "<table>\n"
     for r in range(schedule.shape[0]):
         for c in range(schedule.shape[1]):
-            print(schedule[r, c] and 'X' or '-', end=' ')
-        print()
-    print("</table>")
+            table_string += "X" if schedule[r, c] else "-"
+            table_string += " "
+        table_string += "\n"
+    table_string += "</table>"
+    print(table_string)
 
 
 if __name__ == "__main__":
