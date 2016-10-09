@@ -24,5 +24,7 @@ pkgver() {
 package() {
   cd "$srcdir/$pkgname"
   python setup.py install --root="$pkgdir"
+  install -Dm644 "fablab-schedule.service" \
+                 "$pkgdir/usr/lib/systemd/system/fablab-schedule.service"
 }
 
