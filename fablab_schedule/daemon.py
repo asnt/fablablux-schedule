@@ -8,11 +8,12 @@ import os.path
 from pkg_resources import resource_filename
 import random
 import subprocess
+import tempfile
 import time
 
 import requests
 
-from fablab_schedule import api, config
+from fablab_schedule import api, config, scanner
 
 
 def get_log_file_path():
@@ -31,7 +32,8 @@ def build_logger():
     logging.basicConfig(format=format)
 
     try:
-        file_handler = RotatingFileHandler(log_path, maxBytes=5e6, backupCount=1)
+        file_handler = RotatingFileHandler(log_path, maxBytes=5e6,
+                                           backupCount=1)
     except (OSError, IOError) as e:
         # OSError for Python 3
         # IOErro for Python 2
@@ -53,67 +55,19 @@ logger = build_logger()
 _config = {}
 
 
-def run_with_camera():
-    while True:
-        try:
-            if is_open_access() or _config['force_open_access']:
-                message = "open access : true"
-                message += _config['force_open_access'] and " (forced)" or ""
-                logger.debug(message)
-                scan()
-            else:
-                logger.debug("open access : false")
-                time.sleep(1.0)
-        except KeyboardInterrupt:
-            logger.info("terminate by keyboard interrupt")
-            break
-        except Exception as e:
-            logger.error(repr(e))
-            pass
-
-
-def run_without_camera():
-    while True:
-        try:
-            if is_open_access() or _config['force_open_access']:
-                message = "open access : true"
-                message += _config['force_open_access'] and " (forced)" or ""
-                logger.debug(message)
-                n_machines = _config['n_machines']
-                n_slots = _config['n_slots']
-                post_table(generate_random_table(n_machines, n_slots))
-            else:
-                logger.debug("open access : false")
-                time.sleep(0.5)
-        except KeyboardInterrupt:
-            logger.info("terminate by keyboard interrupt")
-            break
-        except Exception as e:
-            logger.error("error: " + repr(e))
-            pass
-
-
-def scan():
-    logger.debug("grab")
-    grab()
-
-    logger.debug("process")
-    output = process()
-
-    logger.debug("parse table")
-    table = parse_table(output)
-
-    logger.debug("post table")
-    post_table(table)
-
-
-def grab():
+def grab(image_path):
     """Grab an image with the camera.
 
-    Raise RuntimeError if the command failed
+    Parameters
+    ----------
+    image_path: string
+        File path where to store the image.
+
+    Raises
+    ------
+    RuntimeError if the subprocess call fails.
     """
-    tmp_image_path = '/tmp/capture.png.tmp'
-    image_path = '/tmp/capture.png'
+    tmp_image_path = tempfile.TemporaryFile()
     args = ['/opt/vc/bin/raspistill',
             '--output', tmp_image_path,
             '--encoding', 'png',
@@ -136,19 +90,18 @@ def grab():
 
 
 def get_reference_image_path():
-    return resource_filename("fablab_schedule", "data/wall-reference.png")
+    return resource_filename("fablab_schedule", "data/wall-reference.jpg")
 
 
-def process():
-    capture_path = "/tmp/capture.png"
+def get_test_image_path():
+    return resource_filename("fablab_schedule", "data/wall-test.jpg")
+
+
+def process(capture_path):
     reference_path = get_reference_image_path()
-    processed_path = "/tmp/processed.png"
-    args = ["fablab_schedule_scan", "-v", capture_path, reference_path,
-            processed_path]
-    output_bytes = subprocess.check_output(args)
-    output = output_bytes.decode("ascii")
-
-    return output
+    detector = "brisk"
+    schedule, unwarped = scanner.scan(reference_path, capture_path, detector)
+    return schedule
 
 
 def parse_table(table_string):
@@ -168,7 +121,7 @@ def is_open_access():
     url = service.url_for("status")
     r = requests.get(url)
     if r.status_code != 200:
-        raise RuntimeError("could not get open access status")
+        raise RuntimeError("cannot get open access status")
     data = r.json()
     # XXX: Needs a second JSON parsing. Does the server return correct JSON?
     data = json.loads(data)
@@ -183,7 +136,7 @@ def post_table(table):
     json_data = dict(table=table)
     r = requests.post(url, params=params, json=json_data)
     if r.status_code != 200:
-        raise RuntimeError("could not post schedule")
+        raise RuntimeError("cannot post schedule")
 
 
 def generate_random_table(n_machines, n_slots):
@@ -194,16 +147,56 @@ def generate_random_table(n_machines, n_slots):
     return table
 
 
+def mainloop():
+    iteration_delay_sec = 1.0   # seconds
+    while True:
+        t0 = time.perf_counter()
+        try:
+            if not _config['force_scan']:
+                if not is_open_access():
+                    logger.debug("open access : false")
+                    time.sleep(1.0)
+                    continue
+
+            message = "open access: true"
+            message += " (forced)" if _config['force_scan'] else ""
+            logger.debug(message)
+
+            if _config['use_test_image']:
+                input_file = get_test_image_path()
+            else:
+                input_file = "/tmp/capture.png"
+                grab(input_file)
+
+            schedule_table = process(input_file)
+
+            if not _config['disable_post']:
+                post_table(schedule_table)
+        except KeyboardInterrupt:
+            logger.info("terminate by keyboard interrupt")
+            break
+        except Exception as e:
+            logger.error(repr(e), exc_info=True)
+            pass
+
+        t1 = time.perf_counter()
+        elapsed = t1 - t0
+        if elapsed < iteration_delay_sec:
+            time.sleep(iteration_delay_sec - elapsed)
+
+
 def run():
     global _config
 
     description = "Daemon for the FabLab wall schedule scanner"
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("-c", "--config", help="alternate config file")
-    parser.add_argument("-d", "--disable-camera", action="store_true",
-                        help="disable camera grabbing")
-    parser.add_argument("-s", "--force-scanning", action="store_true",
-                        help="force scanning even outside open access hours")
+    parser.add_argument("-s", "--force-scan", action="store_true",
+                        help="force scan even out of open access hours")
+    parser.add_argument("-t", "--test-image", action="store_true",
+                        help="use bundled test image instead of video capture")
+    parser.add_argument("-p", "--disable-post", action="store_true",
+                        help="disable posting the table to the remote peer")
     args = parser.parse_args()
 
     if args.config:
@@ -211,13 +204,11 @@ def run():
     else:
         _config = config.load_default()
 
-    if args.force_scanning:
-        config["force_open_access"] = True
+    _config["force_scan"] = args.force_scan
+    _config['use_test_image'] = args.test_image
+    _config['disable_post'] = args.disable_post
 
-    if args.disable_camera:
-        run_without_camera()
-    else:
-        run_with_camera()
+    mainloop()
 
 
 if __name__ == "__main__":
