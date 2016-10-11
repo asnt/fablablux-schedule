@@ -90,23 +90,21 @@ class ScheduleScanner:
         keypoints, descriptors = self.detector.detectAndCompute(image, mask)
         return keypoints, descriptors
 
-    def filter_matches_by_distance(self, matches, distance_ratio=0.75):
-        """Remove weak matches, i.e. with dissimilar descriptors distances.
+    def filter_dissimilar_matches(self, matches, max_ratio=0.75):
+        """Remove weak matches, i.e. with dissimilar descriptors.
 
         Parameters
         ----------
         matches: sequence of cv2.DMatch pairs
-        distance_ratio: float in [0, 1]
-            Ratio over which the matches are considered weak and discarded.
+        max_ratio: float in [0, 1]
+            Upper bound on acceptable ratio of the descriptors distances.
 
         Returns
         -------
         sequence of cv2.DMatch pairs
-            The descriptors distances ratio of each pair is less than
-            `distance_ratio`.
         """
         return [m for m in matches
-                if m[0].distance < m[1].distance * distance_ratio]
+                if m[0].distance < m[1].distance * max_ratio]
 
     def matches_to_points(self, matches, ref_keypoints, keypoints):
         """Extract the matching keypoints as numpy arrays.
@@ -153,7 +151,7 @@ class ScheduleScanner:
                                         match_count)
         # remove weak matches, i.e. only one match found
         matches = [m for m in matches if len(m) == match_count]
-        matches = self.filter_matches_by_distance(matches, distance_ratio=0.75)
+        matches = self.filter_dissimilar_matches(matches, max_ratio=0.75)
 
         ref_points, points = self.matches_to_points(matches, ref_keypoints,
                                                     keypoints)
