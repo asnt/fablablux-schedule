@@ -12,189 +12,280 @@ from fablab_schedule import config
 debug = False
 
 
-def scan(image, template, detector_name='surf', n_features=5000):
-    """Scan the schedule from the warped image.
+class ScheduleScanner:
+    """Scan the wall schedule image for the booked slots."""
 
-    Parameters
-    ----------
-    image : (M, N, 3)
-        Warped image of the schedule table.
-    template : (M, N, 3)
-        Non-warped template image of the schedule table.
-    detector_name: string, optional
-        The name of the feature detector to use. Default, 'surf'.
-    n_features: string, optional
-        The number of features for the detector. Does not apply to the SURF
-        detector. Default, 5000.
+    def __init__(self, reference_image, detector_name="brisk",
+                 n_features=1000):
+        self.reference = reference_image
+        self.detector_name = detector_name
+        self.detector = self.make_detector(detector_name)
+        self.matcher = self.make_matcher(detector_name)
+        self.n_features = n_features
+        self.ref_features = None
+        self.schedule = None
+        self.unwarped = None
 
-    Returns
-    -------
-    schedule : (N_MACHINES, N_SLOTS), bool
-        Boolean matrix indicating the booking status of the machines.
-    unwarped : (M, N)
-        Unwarped image.
-    """
-    unwarped = unwarp(image, template, detector_name, n_features)
+    def make_detector(self, detector_name):
+        """Construct the detector from its name.
 
-    if debug:
-        import os.path
-        if not os.path.exists('debug'):
-            import os
-            os.mkdir('debug')
-        cv2.imwrite('debug/template.png', template)
-        cv2.imwrite('debug/image.png', image)
-        cv2.imwrite('debug/unwarped.png', unwarped)
+        Parameters
+        ----------
+        detector_name: {"brisk", "orb", "sift", "surf"}
 
-    table_schema = TableBlueprint.from_config(config.get())
-    schedule = find_booked_slots(unwarped, table_schema)
+        Returns
+        -------
+        object implementing cv2.FeatureDetector
+        """
+        if detector_name == "orb":
+            return cv2.ORB_create(nfeatures=self.n_features, nlevels=4,
+                                  scaleFactor=1.3, patchSize=25,
+                                  edgeThreshold=25)
+        elif detector_name == "sift":
+            return cv2.xfeatures2d.SIFT_create(nfeatures=self.n_features)
+        elif detector_name == "surf":
+            return cv2.xfeatures2d.SURF_create()
+        elif detector_name == "brisk":
+            return cv2.BRISK_create()
+        else:
+            raise ValueError("unknown detector: {:s}".format(detector_name))
 
-    return schedule, unwarped
+    def make_matcher(self, detector_name):
+        """Construct the feature matcher adapted to the detector.
+
+        Returns
+        -------
+        cv2.BFMatcher
+        """
+        if detector_name in ["brisk", "orb"]:
+            return cv2.BFMatcher(normType=cv2.NORM_HAMMING)
+        else:
+            return cv2.BFMatcher()
+
+    def compute_features(self, image):
+        """Compute keypoints and descriptors.
+
+        Parameters
+        ----------
+        image: ndarray
+            (M, N)
+
+        Returns
+        -------
+        sequence of (keypoint, descriptor) pairs
+        """
+        mask = None
+        keypoints, descriptors = self.detector.detectAndCompute(image, mask)
+        return keypoints, descriptors
+
+    def filter_matches_by_distance(self, matches, distance_ratio=0.75):
+        """Remove weak matches, i.e. with dissimilar descriptors distances.
+
+        Parameters
+        ----------
+        matches: sequence of cv2.DMatch pairs
+        distance_ratio: float in [0, 1]
+            Ratio over which the matches are considered weak and discarded.
+
+        Returns
+        -------
+        Sequence of cv2.DMatch pairs having distance ratios less than
+        specified.
+        """
+        return [m for m in matches
+                if m[0].distance < m[1].distance * distance_ratio]
+
+    def matches_to_points(self, matches, ref_keypoints, keypoints):
+        """Extract the matching keypoints as numpy arrays.
+
+        Parameters
+        ----------
+        matches: sequence of cv2.DMatch pairs
+        ref_keypoints: sequence of reference keypoints objects
+        keypoints: sequence of target keypoints objects
+
+        Returns
+        -------
+        ref_points: ndarray
+            (N, 2) array of np.float32
+        points: ndarray
+            (N, 2) array of np.float32
+        """
+        ref_points = np.float32([ref_keypoints[m[0].queryIdx].pt
+                                 for m in matches])
+        points = np.float32([keypoints[m[0].trainIdx].pt for m in matches])
+        return ref_points, points
+
+    def find_matching_points(self, reference_features, features):
+        """Find the points whose feature descriptors match.
+
+        Parameters
+        ----------
+        reference_features: sequence of (keypoint, descriptor) pairs
+        features: sequence of (keypoint, descriptor) pairs
+
+        Returns
+        -------
+        ref_points: ndarray
+            (N, 2) array of np.float32
+        points: ndarray
+            (N, 2) array of np.float32
+        """
+        ref_keypoints, ref_descriptors = reference_features
+        keypoints, descriptors = features
+
+        # ask for the two best matches at most
+        match_count = 2
+        matches = self.matcher.knnMatch(ref_descriptors, descriptors,
+                                        match_count)
+        # remove weak matches, i.e. only one match found
+        matches = [m for m in matches if len(m) == match_count]
+        matches = self.filter_matches_by_distance(matches, distance_ratio=0.75)
+
+        ref_points, points = self.matches_to_points(matches, ref_keypoints,
+                                                    keypoints)
+        return ref_points, points
+
+    def find_transformation(self, ref_points, points):
+        """Find the transformation matrix mapping two feature sets.
+
+        Parameters
+        ----------
+        ref_points: ndarray
+            (N, 2) array of np.float32
+        points: ndarray
+            (N, 2) array of np.float32
+
+        Returns
+        -------
+        ndarray
+            The (3, 3) transformation matrix that maps the feature sets.
+        """
+        method = cv2.RANSAC
+        inlier_threshold = 7    # only effective with RANSAC
+        #  method = cv2.LMEDS
+        transformation, _ = cv2.findHomography(ref_points, points, method,
+                                               inlier_threshold)
+        return transformation
+
+    def unwarp(self, image, transformation):
+        """Apply an inverse perspective transformation to `image`.
+
+        Parameters
+        ----------
+        image: ndarray
+            (M, N) image.
+        transformation: ndarray
+            (3, 3) forward transformation matrix.
+
+        Returns
+        -------
+        unwarped: ndarray
+            (M, N) unwarped image.
+        """
+        unwarped = cv2.warpPerspective(image, transformation,
+                                       self.reference.T.shape, None,
+                                       cv2.WARP_INVERSE_MAP)
+        return unwarped
+
+    def scan(self, image):
+        """Scan the image for the schedule.
+
+        Parameters
+        ----------
+        image: ndarray
+            (M, N) image
+
+        Returns
+        -------
+        schedule: array_like, int
+            A 2-dimensional table of boolean values indicating the occupancy of
+            the schedule. An entry is `True` if booked, `False` otherwise.
+        """
+        if self.ref_features is None:
+            self.ref_features = self.compute_features(self.reference)
+        features = self.compute_features(image)
+
+        ref_points, points = self.find_matching_points(self.ref_features,
+                                                       features)
+        transformation = self.find_transformation(ref_points, points)
+
+        self.unwarped = self.unwarp(image, transformation)
+
+        slot_scanner = SlotScanner()
+        self.schedule = slot_scanner.find_booked_slots(self.unwarped)
+
+        return self.schedule
 
 
-def unwarp(image, template, detector_name, n_features=5000):
-    """Transform an image to fit the template.
+class SlotScanner:
 
-    Parameters
-    ----------
-    image : (M, N)
-        Image to rectify.
-    template : (P, Q)
-        Template image.
-    detector_name : string
-        The feature detector to be used.
-    n_features : int, optional
-        The number of features to use. Default 5000. Does not apply to the
-        SURF detector.
+    def __init__(self):
+        conf = config.get()
+        self.table_blueprint = TableBlueprint.from_config(conf)
+        self.booked_slots = None
 
-    Returns
-    -------
-    unwarped : (M', N')
-        The unwarped image.
-    """
-    detector, matcher = make_detector_and_matcher(detector_name, n_features)
+    def compute_roughness(self, image):
+        dx, dy = np.gradient(image)
+        return np.mean(np.sqrt(dx**2 + dy**2))
 
-    mask = None
-    keypoints1, descriptors1 = detector.detectAndCompute(template, mask)
-    keypoints2, descriptors2 = detector.detectAndCompute(image, mask)
+    def is_card_absent(self, slot_image, threshold):
+        # A card is absent if the roughness is low.
+        return self.compute_roughness(slot_image) < threshold
 
-    matches = matcher.match(descriptors1, descriptors2)
+    def compute_roughness_threshold(self, mean_intensity):
+        """Compute a roughness threshold adjusted to the mean intensity level.
 
-    # Get the keypoints as Nx2 arrays from the list of OpenCV keypoints.
-    keypoints1 = [keypoints1[int(m.queryIdx)].pt for m in matches]
-    keypoints1 = np.array(keypoints1, dtype=np.float32)
-    keypoints2 = [keypoints2[int(m.trainIdx)].pt for m in matches]
-    keypoints2 = np.array(keypoints2, dtype=np.float32)
+        Parameters
+        ----------
+        mean_intensity: int
+            Mean intensity level of the reference image.
 
-    #  method = cv2.RANSAC
-    method = cv2.LMEDS
-    inlier_threshold = 7    # Only effective with RANSAC.
-    transform_matrix, mask = cv2.findHomography(keypoints1, keypoints2,
-                                                method, inlier_threshold)
+        Returns
+        -------
+        float
+            The adapted roughness threshold.
+        """
+        reference_mean_intensity_level = 150
+        threshold_at_reference = 2.5
+        threshold = threshold_at_reference \
+            * (mean_intensity / reference_mean_intensity_level)
+        return threshold
 
-    unwarped = cv2.warpPerspective(image, transform_matrix, template.T.shape,
-                                   None, cv2.WARP_INVERSE_MAP)
+    def find_booked_slots(self, image):
+        """Find which slots are booked in the reference image of the schedule.
 
-    return unwarped
+        Parameters
+        ----------
+        image : ndarray
+            (M, N) unwarped image of the schedule table.
 
-
-def make_detector_and_matcher(detector_name, n_features):
-    """Construct the detector and matcher objects.
-
-    Parameters
-    ----------
-    detector_name :
-        Detector name (SURF, SIFT, ORB).
-    n_features :
-        Number of feature points to detect. Does not apply to SURF.
-
-    Returns
-    -------
-    detector :
-        The detector object.
-    matcher :
-        The matcher object.
-    """
-    if detector_name == 'orb':
-        detector = cv2.ORB_create(nfeatures=n_features)
-        matcher = cv2.BFMatcher(normType=cv2.NORM_HAMMING, crossCheck=True)
-    elif detector_name == 'sift':
-        detector = cv2.xfeatures2d.SIFT_create(nfeatures=n_features)
-        matcher = cv2.BFMatcher(crossCheck=True)
-    elif detector_name == 'surf':
-        detector = cv2.xfeatures2d.SURF_create(hessianThreshold=300,
-                                               upright=True)
-        matcher = cv2.BFMatcher(crossCheck=True)
-    else:
-        raise ValueError('unknown detector: {:s}'.format(detector) +
-                         '(should be one of "orb", "sift", "surf"')
-
-    return detector, matcher
+        Returns
+        -------
+        schedule : array_like, bool
+            A 2-dimensional table of boolean values indicating the occupancy of
+            the schedule. An entry is `True` if booked, `False` otherwise.
+        """
+        image_float = image.astype(float)
+        mean_intensity = image_float.mean()
+        threshold = self.compute_roughness_threshold(mean_intensity)
+        table = self.table_blueprint
+        schedule = np.zeros(table.shape[:2], dtype=bool)
+        for row_index in range(table.n_rows):
+            for col_index in range(table.n_cols):
+                r, c = table.slot_offsets[row_index, col_index]
+                r_min = r - table.slot_radius
+                r_max = r + table.slot_radius
+                c_min = c - table.slot_radius
+                c_max = c + table.slot_radius
+                slot = image_float[r_min:r_max, c_min:c_max]
+                if self.is_card_absent(slot, threshold):
+                    schedule[row_index, col_index] = True
+        return schedule
 
 
-def compute_roughness(image):
-    dx, dy = np.gradient(image)
-    return np.mean(np.sqrt(dx**2 + dy**2))
-
-
-def is_card_absent(slot_image, threshold):
-    # A slot is booked if the card is absent, i.e. the roughness is low.
-    return compute_roughness(slot_image) < threshold
-
-
-def find_booked_slots(image, table_blueprint):
-    """Find which slots are booked in the image of the schedule table.
-
-    Parameters
-    ----------
-    image : (M, N)
-        Aligned image of the schedule table.
-    table_blueprint :
-        A TableBlueprint object giving the features of the table.
-
-    Returns
-    -------
-    schedule : (N_MACHINES, N_SLOTS), bool
-        Schedule matrix (True if slot scheduled).
-    """
-    image_float = image.astype(float)
-    mean_intensity = image_float.mean()
-    threshold = compute_roughness_threshold(mean_intensity)
-
-    if debug:
-        print("roughness threshold = {:.2f}".format(threshold))
-
-    if debug:
-        slot_roughness = np.zeros(table_blueprint.shape)
-
-    table = table_blueprint
-    schedule = np.zeros(table.shape[:2], dtype=bool)
-    for row_index in range(table.n_rows):
-        for col_index in range(table.n_cols):
-            r, c = table.slot_offsets[row_index, col_index]
-            r_min = r - table.slot_radius
-            r_max = r + table.slot_radius
-            c_min = c - table.slot_radius
-            c_max = c + table.slot_radius
-            slot = image_float[r_min:r_max, c_min:c_max]
-            if is_card_absent(slot, threshold):
-                schedule[row_index, col_index] = True
-            if debug:
-                slot_roughness[row_index, col_index] = compute_roughness(slot)
-
-    if debug:
-        np.set_printoptions(precision=2)
-        print(slot_roughness)
-
-    return schedule
-
-
-def compute_roughness_threshold(mean_intensity):
-    """Compute a roughness threshold adjusted to the given mean intensity."""
-    reference_mean_intensity_level = 150
-    threshold_at_reference = 2.5
-    threshold = threshold_at_reference \
-        * (mean_intensity / reference_mean_intensity_level)
-    return threshold
+def cartesian_product(x, y):
+    return [[(valx, valy) for valy in y] for valx in x]
 
 
 class TableBlueprint:
@@ -209,17 +300,14 @@ class TableBlueprint:
     def from_config(conf):
         row_offsets = conf["row_offsets"]
         column_offsets = conf["column_offsets"]
-        slot_offsets = TableBlueprint._make_slot_offsets(row_offsets,
-                                                         column_offsets)
+        slot_offsets = TableBlueprint.make_slot_offsets(row_offsets,
+                                                        column_offsets)
         slot_radius = int(conf["slot_size"] / 2)
         return TableBlueprint(slot_offsets, slot_radius)
 
-    def _make_slot_offsets(row_offsets, column_offsets):
+    @staticmethod
+    def make_slot_offsets(row_offsets, column_offsets):
         return cartesian_product(row_offsets, column_offsets)
-
-
-def cartesian_product(x, y):
-    return [[(valx, valy) for valy in y] for valx in x]
 
 
 def highlight_slots(image, table_blueprint):
@@ -227,15 +315,15 @@ def highlight_slots(image, table_blueprint):
 
     Parameters
     ----------
-    image : (M, N)
-        Image of the schedule.
-    table_blueprint :
+    image : ndarray
+        (M, N) image of the schedule.
+    table_blueprint: object
         A TableBlueprint object giving the features of the table.
 
     Returns
     -------
-    highlighted : (M, N)
-        Image with highlighted slots.
+    highlighted : ndarray
+        (M, N) image with highlighted slots.
     """
     slot_mask = np.ones_like(image, dtype=bool)
     for m in range(table_blueprint.n_rows):
@@ -257,34 +345,13 @@ def read_image_grayscale(filename):
     return cv2.imread(filename, 0)
 
 
-def main():
-    params = parse_arguments()
-
-    image = read_image_grayscale(params['input_file'])
-    template = read_image_grayscale(params['template_file'])
-
-    if image is None:
-        print("could no read image '" + params['input_file'] + "'")
-        sys.exit(1)
-    if template is None:
-        print("could no read image '" + params['template_file'] + "'")
-        sys.exit(1)
-
-    detector_name = params['detector']
-    n_features = params['n_features']
-    schedule, unwarped = scan(image, template, detector_name, n_features)
-
-    print_schedule(schedule)
-
-    table_blueprint = TableBlueprint.from_config(config.get())
-    highlighted = highlight_slots(unwarped, table_blueprint)
-    cv2.imwrite(params['output_file'], highlighted)
-
-
 def parse_arguments():
     """Parse the command line arguments.
 
-    Return a dictionnary of parameters.
+    Returns
+    -------
+    dict
+        The parameters.
     """
     global debug
 
@@ -292,15 +359,17 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="display debug information")
-    parser.add_argument("-d", "--detector", choices=["orb", "sift", "surf"],
-                        default="surf",
+    parser.add_argument("-d", "--detector",
+                        choices=["brisk", "orb", "sift", "surf"],
+                        default="brisk",
                         help="select feature detector (default: %(default)s)")
     parser.add_argument("-f", "--features", type=int, default=5000,
                         help="number of features to detect "
                              "(default: %(default)d)")
+    parser.add_argument("-o", "--output",
+                        help="output image with detected slots highlighted")
     parser.add_argument("reference", help="reference image")
     parser.add_argument("input", help="input image")
-    parser.add_argument("output", help="output image")
 
     args = parser.parse_args()
     if args.verbose:
@@ -308,7 +377,7 @@ def parse_arguments():
     params = dict(
         detector=args.detector,
         n_features=args.features,
-        template_file=args.reference,
+        reference_file=args.reference,
         input_file=args.input,
         output_file=args.output,
     )
@@ -325,6 +394,34 @@ def print_schedule(schedule):
         table_string += "\n"
     table_string += "</table>"
     print(table_string)
+
+
+def scan(reference_file, input_file, detector, n_features):
+    reference = read_image_grayscale(reference_file)
+    image = read_image_grayscale(input_file)
+
+    if reference is None:
+        print("could no read image '{:s}'".format(reference_file))
+        sys.exit(1)
+    if image is None:
+        print("could no read image '{:s}'".format(input_file))
+        sys.exit(1)
+
+    scanner = ScheduleScanner(reference, detector, n_features)
+    schedule = scanner.scan(image)
+
+    return schedule
+
+
+def main():
+    params = parse_arguments()
+
+    reference_file = params['reference_file']
+    input_file = params['input_file']
+    detector = params['detector']
+    n_features = params['n_features']
+    schedule = scan(reference_file, input_file, detector, n_features)
+    print_schedule(schedule)
 
 
 if __name__ == "__main__":
