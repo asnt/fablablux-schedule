@@ -9,7 +9,7 @@ For fair usage time of the machines during open access hours, the users of
 FabLab Luxembourg have to book their time slots on site.
 To do this, they grab a card from the painted wall schedule.
 
-![FabLab Luxembourg wall schedule](data/wall_small.jpg)
+![FabLab Luxembourg wall schedule](fablab_schedule/data/wall.jpg)
 
 This software aims at automatically publishing the on-site schedule on FabLab
 Luxembourg's website at regular intervals.
