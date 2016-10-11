@@ -39,6 +39,11 @@ class ScheduleScanner:
         Returns
         -------
         object implementing cv2.FeatureDetector
+
+        Raises
+        ------
+        ValueError
+            In case of invalid detector name.
         """
         if detector_name == "orb":
             return cv2.ORB_create(nfeatures=self.n_features, nlevels=4,
@@ -55,6 +60,10 @@ class ScheduleScanner:
 
     def make_matcher(self, detector_name):
         """Construct the feature matcher adapted to the detector.
+
+        Parameters
+        ----------
+        detector_name: {"brisk", "orb", "sift", "surf"}
 
         Returns
         -------
@@ -92,8 +101,9 @@ class ScheduleScanner:
 
         Returns
         -------
-        Sequence of cv2.DMatch pairs having distance ratios less than
-        specified.
+        sequence of cv2.DMatch pairs
+            The descriptors distances ratio of each pair is less than
+            `distance_ratio`.
         """
         return [m for m in matches
                 if m[0].distance < m[1].distance * distance_ratio]
