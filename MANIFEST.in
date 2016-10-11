@@ -1,2 +1,4 @@
-include fablab_schedule/data/wall-reference.png
+include fablab_schedule/data/wall.jpg
+include fablab_schedule/data/wall-reference.jpg
+include fablab_schedule/data/wall-test.jpg
 include fablab_schedule/conf/fablab_schedule.cfg.example

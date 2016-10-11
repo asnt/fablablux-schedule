@@ -18,7 +18,8 @@ setup(
     packages=find_packages(),
     package_data={
         "fablab_schedule": [
-            "data/wall-reference.png",
+            "data/wall.jpg",
+            "data/wall-reference.jpg",
             "data/wall-test.jpg",
             "conf/fablab_schedule.cfg.example",
         ],
