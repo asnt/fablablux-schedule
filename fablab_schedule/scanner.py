@@ -423,8 +423,12 @@ def main():
     input_file = params['input_file']
     detector = params['detector']
     n_features = params['n_features']
-    schedule = scan(reference_file, input_file, detector, n_features)
+    schedule, unwarped = scan(reference_file, input_file, detector, n_features)
     print_schedule(schedule)
+    if params['output_file'] is not None:
+        table_blueprint = TableBlueprint.from_config(config.get())
+        highlighted = highlight_slots(unwarped, table_blueprint)
+        cv2.imwrite(params['output_file'], highlighted)
 
 
 if __name__ == "__main__":
