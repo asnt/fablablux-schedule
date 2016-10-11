@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+import logging
 import sys
 
 import cv2
@@ -8,6 +9,8 @@ import numpy as np
 
 from fablab_schedule import config
 
+
+logger = logging.getLogger(__name__)
 
 debug = False
 
@@ -396,21 +399,21 @@ def print_schedule(schedule):
     print(table_string)
 
 
-def scan(reference_file, input_file, detector, n_features):
+def scan(reference_file, input_file, detector, n_features=1000):
     reference = read_image_grayscale(reference_file)
     image = read_image_grayscale(input_file)
 
     if reference is None:
-        print("could no read image '{:s}'".format(reference_file))
+        logger.error("cannot read image '{:s}'".format(reference_file))
         sys.exit(1)
     if image is None:
-        print("could no read image '{:s}'".format(input_file))
+        logger.error("cannot read image '{:s}'".format(input_file))
         sys.exit(1)
 
     scanner = ScheduleScanner(reference, detector, n_features)
     schedule = scanner.scan(image)
 
-    return schedule
+    return schedule, scanner.unwarped
 
 
 def main():
