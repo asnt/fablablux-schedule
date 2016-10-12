@@ -12,8 +12,8 @@ depends=('python'
 makedepends=('git')
 provides=("${pkgname%-git}")
 conflicts=("${pkgname%-git}")
-source=("$pkgname::git+http://github.com/asnt/${pkgname%-git}.git")
-md5sums=(SKIP)
+source=("$pkgname::git+https://github.com/asnt/fablablux-schedule.git")
+md5sums=('SKIP')
 
 pkgver() {
     cd "$srcdir/${pkgname}"
