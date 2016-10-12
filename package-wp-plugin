@@ -1,0 +1,6 @@
+#!/bin/sh
+
+git archive \
+     --format zip \
+     HEAD:wordpress-plugin/ \
+     -o fablab-schedule-wp.zip
