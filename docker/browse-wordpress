@@ -1,0 +1,6 @@
+#!/bin/bash
+
+wp_ip=$(docker inspect \
+           --format '{{ .NetworkSettings.IPAddress }}' \
+           fablablux-wp)
+firefox $wp_ip
