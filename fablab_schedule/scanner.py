@@ -224,7 +224,8 @@ class ScheduleScanner:
         self.unwarped = self.unwarp(image, transformation)
 
         slot_scanner = SlotScanner()
-        self.schedule = slot_scanner.find_booked_slots(self.unwarped)
+        schedule_array = slot_scanner.find_booked_slots(self.unwarped)
+        self.schedule = schedule_array.tolist()
 
         return self.schedule
 
