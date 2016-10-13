@@ -1,10 +1,6 @@
 import logging
 import os
-from pkg_resources import resource_stream, resource_string
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
+from pkg_resources import resource_filename
 try:
     # Python 3
     import configparser
@@ -24,67 +20,18 @@ example_config_filename = "fablab_schedule.cfg.example"
 _config = None
 
 
-def get_default_config_string():
-    return resource_string("fablab_schedule",
-                           "conf/" + example_config_filename)
+def get_default_config_file_path():
+    return resource_filename("fablab_schedule",
+                             "conf/" + example_config_filename)
 
 
-def get_default_config_stream():
-    return resource_stream("fablab_schedule",
-                           "conf/" + example_config_filename)
-
-
-def get_config_file_path():
+def get_global_config_file_path():
     path = os.path.join(config_dir, config_filename)
     return path
 
 
-def config_file_exists():
-    return os.path.exists(get_config_file_path())
-
-
-def create_default_config_file(force=False):
-    if config_file_exists() and not force:
-        return
-    config_string = get_default_config_string()
-    config_path = os.path.join(config_dir, config_filename)
-    with open(config_path, "w") as f:
-        f.write(config_string)
-
-
-def get():
-    global _config
-    if _config is None:
-        _config = load_default()
-        path = get_config_file_path()
-        if os.path.exists(path):
-            _config.update(load_from_file(path))
-    return _config
-
-
-def load_default():
-    logger.info("load default config")
-    default_config_string = get_default_config_string().decode("utf-8")
-    return load_from_string(default_config_string)
-
-
-def load_from_string(config_string):
-    logger.info("load config from string")
-    parser = configparser.ConfigParser()
-    try:
-        parser.read_string(config_string)
-    except AttributeError:
-        # Python 2
-        config_stream = StringIO(config_string)
-        parser.readfp(config_stream)
-    return make_config_dict_from_parser(parser)
-
-
-def load_from_file(filename):
-    logger.info("load config file %s", filename)
-    parser = configparser.ConfigParser()
-    parser.read(filename)
-    return make_config_dict_from_parser(parser)
+def parse_float_list(text, delimiter=","):
+    return [float(value) for value in text.split(delimiter)]
 
 
 def make_config_dict_from_parser(parser):
@@ -108,5 +55,17 @@ def make_config_dict_from_parser(parser):
     return config
 
 
-def parse_float_list(text, delimiter=","):
-    return [float(value) for value in text.split(delimiter)]
+def get():
+    global _config
+    if _config is None:
+        parser = configparser.ConfigParser()
+        parser.read_file(open(get_default_config_file_path()))
+        parser.read(get_global_config_file_path())
+        _config = make_config_dict_from_parser(parser)
+    return _config
+
+
+def from_file(filepath):
+    parser = configparser.ConfigParser()
+    parser.read_file(open(filepath))
+    return make_config_dict_from_parser(parser)

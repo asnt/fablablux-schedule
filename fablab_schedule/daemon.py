@@ -200,7 +200,7 @@ def run():
     args = parser.parse_args()
 
     if args.config:
-        _config = config.load(args.config)
+        _config = config.from_file(args.config)
     else:
         _config = config.get()
 

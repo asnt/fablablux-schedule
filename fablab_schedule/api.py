@@ -126,7 +126,7 @@ def main():
         sys.exit(1)
 
     import config
-    config = config.load(args['config_file'])
+    config = config.from_file(args['config_file'])
     schedule = ScheduleService(config['base_url'], config['username'],
                                                    config['password'])
 
