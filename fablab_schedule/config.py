@@ -54,9 +54,9 @@ def create_default_config_file(force=False):
 
 def get():
     global _config
-    path = get_config_file_path()
     if _config is None:
         _config = load_default()
+        path = get_config_file_path()
         if os.path.exists(path):
             _config.update(load_from_file(path))
     return _config
@@ -89,11 +89,11 @@ def load_from_file(filename):
 
 def make_config_dict_from_parser(parser):
     config = {}
-    if parser.has_section("api"):
+    if "api" in parser:
         config["username"] = parser.get("api", "username")
         config["password"] = parser.get("api", "password")
         config["base_url"] = parser.get("api", "base_url")
-    if parser.has_section("table"):
+    if "table" in parser:
         config["n_machines"] = parser.getint("table", "n_machines")
         config["n_slots"] = parser.getint("table", "n_slots")
         row_offsets = parser.get("table", "row_offsets")
@@ -101,7 +101,7 @@ def make_config_dict_from_parser(parser):
         column_offsets = parser.get("table", "column_offsets")
         config["column_offsets"] = parse_float_list(column_offsets)
         config["slot_size"] = parser.getint("table", "slot_size")
-    if parser.has_section("camera"):
+    if "camera" in parser:
         config["vertical_flip"] = parser.getboolean("camera", "vertical_flip")
         config["horizontal_flip"] = parser.getboolean("camera",
                                                       "horizontal_flip")
