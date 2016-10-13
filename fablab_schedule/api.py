@@ -33,20 +33,21 @@ class ScheduleService:
     def status(self):
         url = self.url_for("status")
         r = requests.get(url)
-        print(url)
-        print('status: ', r.status_code)
+        print("get " + url)
+        print(r.status_code)
         print(r.text)
 
     def get(self):
         url = self.url_for("schedule")
         r = requests.get(url)
-
-        print(url)
-        print('get schedule: ', r.status_code)
-        table = json.loads(r.json()).get("table", None)
-        if table is not None:
+        print("get " + url)
+        print(r.status_code)
+        try:
+            table = json.loads(r.json()).get("table", None)
             print_table(table)
-        else:
+        except json.decoder.JSONDecodeError as e:
+            print(e.__class__.__name__)
+            print(e)
             print(r.text)
 
     def post(self, table):
@@ -54,18 +55,20 @@ class ScheduleService:
         json_data = dict(table=table)
         credentials = dict(username=self.username, password=self.password)
         r = requests.post(url, params=credentials, json=json_data)
-
-        print(url)
-        print('post schedule: ', r.status_code)
-        data = json.loads(r.json()).get("data", None)
-        if data is None:
-            table = None
-        else:
-            table = data.get("table", None)
-        if table is not None:
-            print_table(table)
-        else:
+        print("post " + url)
+        print(r.status_code)
+        try:
+            data = json.loads(r.json()).get("data", None)
+        except json.decoder.JSONDecodeError as e:
+            print(e.__class__.__name__)
+            print(e)
             print(r.text)
+        else:
+            if data is not None:
+                table = data.get("table", None)
+                print_table(table)
+            else:
+                print(r.text)
 
 
 def print_table(table):
@@ -79,10 +82,8 @@ def print_table(table):
 def generate_random_table():
     n_slots = 9
     n_machines = 7
-    table = [
-        [bool(round(random.random())) for __ in range(n_slots)]
-        for __ in range(n_machines)
-    ]
+    table = [[bool(round(random.random())) for __ in range(n_slots)]
+             for __ in range(n_machines)]
     return table
 
 
