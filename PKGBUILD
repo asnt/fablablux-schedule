@@ -26,5 +26,7 @@ package() {
   python setup.py install --root="$pkgdir"
   install -Dm644 "fablab-schedule.service" \
                  "$pkgdir/usr/lib/systemd/system/fablab-schedule.service"
+  install -Dm600 "fablab_schedule/conf/fablab_schedule.cfg.example" \
+                 "$pkgdir/etc/fablab_schedule/fablab_schedule.cfg"
 }
 
