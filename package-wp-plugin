@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# Package the plugin in a zip file ready to be imported into WordPress.
+
 git archive \
      --format zip \
      HEAD:wordpress-plugin/ \
