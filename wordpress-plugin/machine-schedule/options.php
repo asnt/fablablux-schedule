@@ -179,4 +179,3 @@ class MachineScheduleOptions implements ArrayAccess {
 }
 
 ?>
-
