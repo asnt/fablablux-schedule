@@ -1,17 +1,20 @@
 from __future__ import print_function
 
+import argparse
 import json
 import random
 
 import requests
+
+from fablab_schedule import config
 
 
 class ScheduleService:
 
     base_route = "?rest_route=/open-access/v1"
     endpoints = {
-            "status": "/",
-            "schedule": "/machine-schedule",
+        "status": "/",
+        "schedule": "/machine-schedule",
     }
 
     def __init__(self, base_url, username="", password=""):
@@ -83,66 +86,32 @@ def generate_random_table():
     return table
 
 
-usage_message = """\
-Interact with the schedule REST api.
-
-usage: {} [options] <status|get|post>
-
-commands:
-    status  get the status of the open access
-    get     get the latest schedule
-    post    post a random schedule
-
-options:
-    --config <filename>
-"""
-
-def usage():
-    import sys
-    message = usage_message.format(sys.argv[0])
-    print(message)
-
-
-def parse_arguments(raw_args):
-    args = dict(config_file="schedule.cfg")
-
-    if "--config" in raw_args:
-        index = raw_args.index("--config")
-        args['config_file'] = raw_args[index + 1]
-        del raw_args[index:index + 2]
-
-    args['command'] = raw_args[0]
-
-    return args
-
-
 def main():
-    import sys
-    try:
-        args = parse_arguments(sys.argv[1:])
-    except Exception as e:
-        print(e)
-        usage()
-        sys.exit(1)
+    description = "Communicate with the REST API of the FabLab wall schedule" \
+                  " WordPress plugin"
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("command", choices=["get", "status", "post"])
+    parser.add_argument("-c", "--config", help="alternate config file")
+    args = parser.parse_args()
 
-    import config
-    config = config.from_file(args['config_file'])
-    schedule = ScheduleService(config['base_url'], config['username'],
-                                                   config['password'])
+    if args.config:
+        conf = config.from_file(args.config)
+    else:
+        conf = config.get()
 
-    command = args['command']
+    url = conf["base_url"]
+    user = conf["username"]
+    password = conf["password"]
+    service = ScheduleService(url, user, password)
+
+    command = args.command
     if command == "status":
-        schedule.status()
+        service.status()
     elif command == "get":
-        schedule.get()
+        service.get()
     elif command == "post":
         table = generate_random_table()
-        schedule.post(table)
-    else:
-        print("unknown command: " + str(command))
-        print()
-        usage()
-        sys.exit(1)
+        service.post(table)
 
 
 if __name__ == "__main__":
