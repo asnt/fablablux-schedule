@@ -136,7 +136,7 @@ def post_table(table):
     json_data = dict(table=table)
     r = requests.post(url, params=params, json=json_data)
     if r.status_code != 200:
-        raise RuntimeError("cannot post schedule")
+        raise RuntimeError("cannot post schedule: {:s}".format(r.text))
 
 
 def generate_random_table(n_machines, n_slots):
@@ -202,7 +202,7 @@ def run():
     if args.config:
         _config = config.load(args.config)
     else:
-        _config = config.load_default()
+        _config = config.get()
 
     _config["force_scan"] = args.force_scan
     _config['use_test_image'] = args.test_image
