@@ -8,7 +8,6 @@ import os.path
 from pkg_resources import resource_filename
 import random
 import subprocess
-import tempfile
 import time
 
 import requests
@@ -67,7 +66,7 @@ def grab(image_path):
     ------
     RuntimeError if the subprocess call fails.
     """
-    tmp_image_path = tempfile.TemporaryFile()
+    tmp_image_path = '/tmp/fablab_schedule_image.tmp'
     args = ['/opt/vc/bin/raspistill',
             '--output', tmp_image_path,
             '--encoding', 'png',
